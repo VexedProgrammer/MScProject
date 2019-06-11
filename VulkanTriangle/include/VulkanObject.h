@@ -80,6 +80,7 @@ private:
 
 	glm::vec3 m_Position = glm::vec3(0, 0, 0);
 	glm::vec3 m_Rotation = glm::vec3(0, 0, 0);
+	glm::vec3 m_Scale = glm::vec3(1, 1, 1);
 
 	VulkanEngine* m_Engine;
 	VkPhysicalDevice& m_PhyDevice;
@@ -94,20 +95,22 @@ private:
 	VkImageView textureImageView;
 	VkSampler textureSampler;
 
+	VkImage ntextureImage;
+	VkDeviceMemory ntextureImageMemory;
+	VkImageView ntextureImageView;
+	VkSampler ntextureSampler;
+
+	VkImage stextureImage;
+	VkDeviceMemory stextureImageMemory;
+	VkImageView stextureImageView;
+	VkSampler stextureSampler;
+
 	
 
 	//Vector of vertacies each with a position and colour
-	std::vector<Vertex> vertices; /*= {
-		{ { -1.0f, -1.0f, -1.0f },{ -1.0f, -1.0f, -1.0f }, {0.0f, 0.3f} },
-		{ { 1.0f, -1.0f, -1.0f },{ 1.0f, -1.0f, -1.0f } , {0.5f, 1.0f}  },
-		{ { 1.0f, -1.0f,  1.0f },{ 1.0f, -1.0f,  1.0f } , {0.4f, 0.1f}  },
-		{ { -1.0f, -1.0f,  1.0f },{ -1.0f, -1.0f,  1.0f }, {0.85f, 0.0f} },
-		{ { -0.0f,  1.0f,  0.0f },{ 0.0f,  1.0f,  0.0f }, {1.0f, 0.0f} }
-	};*/
+	std::vector<Vertex> vertices;
 	//Index of each vertex in order to make the pyrimid shapes
-	std::vector<uint32_t> indices; /*= {
-		2, 0, 1, 0, 2, 3, 2, 1, 4, 0, 3, 4, 3, 2, 4, 1, 0, 4
-	};*/
+	std::vector<uint32_t> indices;
 
 	//Vertex Buffers
 	VkBuffer m_VertexBuffer;
@@ -117,7 +120,7 @@ private:
 
 public:
 
-	VulkanObject(VulkanEngine* engine, VkPhysicalDevice& phyDevice, VkDevice& device, VkQueue graphicsQueue, VkCommandPool commandPool, const char* modelPath, const char* texturePath);
+	VulkanObject(VulkanEngine* engine, VkPhysicalDevice& phyDevice, VkDevice& device, VkQueue graphicsQueue, VkCommandPool commandPool, const char* modelPath, const char* texturePath, const char* nTexturePath, const char* sTexturePath);
 	~VulkanObject();
 
 	
@@ -135,10 +138,18 @@ public:
 	const void SetRot(glm::vec3 rot) { m_Rotation = rot; }
 	const glm::vec3 GetRot() const { return m_Rotation; }
 
+	const void SetScale(glm::vec3 scale) { m_Scale = scale; }
+	const glm::vec3 GetScale() const { return m_Scale; }
+
 	VkImage& GetTextureImage() { return textureImage; }
 	void SetTextureImageView(VkImageView view) { textureImageView = view; }
 	VkImageView& GetTextureImageView() { return textureImageView; }
 	VkSampler& GetTextureSampler() { return textureSampler; }
+
+	VkImageView& GetNormalTextureImageView() { return ntextureImageView; }
+	VkSampler& GetNormalTextureSampler() { return ntextureSampler; }
+	VkImageView& GetSpecTextureImageView() { return stextureImageView; }
+	VkSampler& GetSpecTextureSampler() { return stextureSampler; }
 
 	void loadModel(const char* path);
 

@@ -4,7 +4,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h> 
 
-VulkanObject::VulkanObject(VulkanEngine* engine, VkPhysicalDevice& phyDevice, VkDevice& device, VkQueue graphicsQueue, VkCommandPool commandPool, const char* modelPath, const char* texturePath) : m_PhyDevice(phyDevice), m_Device(device)
+VulkanObject::VulkanObject(VulkanEngine* engine, VkPhysicalDevice& phyDevice, VkDevice& device, VkQueue graphicsQueue, VkCommandPool commandPool, const char* modelPath, const char* texturePath, const char* nTexturePath, const char* sTexturePath) : m_PhyDevice(phyDevice), m_Device(device)
 {
 	m_Engine = engine;
 
@@ -17,8 +17,16 @@ VulkanObject::VulkanObject(VulkanEngine* engine, VkPhysicalDevice& phyDevice, Vk
 	m_Engine->createIndexBuffer(graphicsQueue, commandPool, this);
 
 	m_Engine->createTextureImage(graphicsQueue, commandPool, textureImage, textureImageMemory, texturePath);
-	m_Engine->createTextureImageView(this);
-	m_Engine->createTextureSampler(this);
+	m_Engine->createTextureImageView(this, textureImageView, textureImage);
+	m_Engine->createTextureSampler(this, textureSampler);
+
+	m_Engine->createTextureImage(graphicsQueue, commandPool, ntextureImage, ntextureImageMemory, nTexturePath);
+	m_Engine->createTextureImageView(this, ntextureImageView, ntextureImage);
+	m_Engine->createTextureSampler(this, ntextureSampler);
+
+	m_Engine->createTextureImage(graphicsQueue, commandPool, stextureImage, stextureImageMemory, sTexturePath);
+	m_Engine->createTextureImageView(this, stextureImageView, stextureImage);
+	m_Engine->createTextureSampler(this, stextureSampler);
 }
 VulkanObject::~VulkanObject()
 {
@@ -36,6 +44,16 @@ VulkanObject::~VulkanObject()
 	vkDestroyImageView(m_Device, textureImageView, nullptr);
 	vkDestroySampler(m_Device, textureSampler, nullptr);
 	vkFreeMemory(m_Device, textureImageMemory, nullptr);
+
+	vkDestroyImage(m_Device, ntextureImage, nullptr);
+	vkDestroyImageView(m_Device, ntextureImageView, nullptr);
+	vkDestroySampler(m_Device, ntextureSampler, nullptr);
+	vkFreeMemory(m_Device, ntextureImageMemory, nullptr);
+
+	vkDestroyImage(m_Device, stextureImage, nullptr);
+	vkDestroyImageView(m_Device, stextureImageView, nullptr);
+	vkDestroySampler(m_Device, stextureSampler, nullptr);
+	vkFreeMemory(m_Device, stextureImageMemory, nullptr);
 
 }
 

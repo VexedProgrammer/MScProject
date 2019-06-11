@@ -17,8 +17,9 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 0) out vec3 fragNormal;
 layout(location = 1) out vec2 fragTexCoord;
 layout (location = 4) out vec4 outShadowCoord;
+layout(location = 5) out vec3 fragPos;
 
-vec3 lDir = vec3(5.0, 5.0, 0.0f);
+vec3 lDir = vec3(0.0, 5.0, -5.0f);
 layout(location = 2) out vec3 lightDir;
 
 const mat4 bias = mat4( 
@@ -29,10 +30,12 @@ const mat4 bias = mat4(
 
 void main() {
 
-	lDir = lDir * mat3(ubo.lightrot); //Calucate the light position
-	lightDir = normalize(vec3(0, 0.75, 0)- -lDir);  //Calculate the light direction
+	//lDir = lDir * mat3(ubo.lightrot); //Calucate the light position
+	lightDir = normalize(vec3(0, 0.75, 0)- lDir);  //Calculate the light direction
 	fragNormal = mat3(transpose(inverse(ubo.model))) * inNormal; //Calculate the normal
-	gl_Position = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0); //Calculate the position
+	vec4 pos = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);//Calculate the position
+	fragPos =  (ubo.model * vec4(inPosition, 1.0)).xyz;
+	gl_Position = pos;
 	
 	fragTexCoord = inTexCoord; //Pass out the texture coords
 	outShadowCoord = ( bias * ubo.lightSpace) * vec4(inPosition, 1.0);	//Calculate the shadow coords using a bias

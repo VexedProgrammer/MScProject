@@ -37,8 +37,8 @@ public:
 	void transitionImageLayout(VkQueue& graphicsQueue, VkCommandPool& comPool, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void copyBufferToImage(VkQueue& graphicsQueue, VkCommandPool& comPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 
-	void createTextureImageView(VulkanObject* object);
-	void createTextureSampler(VulkanObject* object);
+	void createTextureImageView(VulkanObject* object, VkImageView& view, VkImage& image);
+	void createTextureSampler(VulkanObject* object, VkSampler& sampler);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
 	VkImageView createTextureImageView(VkImage& image);

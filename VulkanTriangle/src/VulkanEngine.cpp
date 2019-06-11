@@ -369,12 +369,14 @@ void VulkanEngine::copyBufferToImage(VkQueue& graphicsQueue, VkCommandPool& comP
 	endSingleTimeCommands(graphicsQueue, comPool, commandBuffer);
 }
 
-void VulkanEngine::createTextureImageView(VulkanObject* object)
+void VulkanEngine::createTextureImageView(VulkanObject* object, VkImageView& view, VkImage& image)
 {
-	object->SetTextureImageView(createImageView(object->GetTextureImage(), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT));
+	//object->SetTextureImageView(createImageView(object->GetTextureImage(), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT));
+
+	view = createImageView(image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
-void VulkanEngine::createTextureSampler(VulkanObject* object)
+void VulkanEngine::createTextureSampler(VulkanObject* object, VkSampler& sampler)
 {
 	VkSamplerCreateInfo samplerInfo = {};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -391,7 +393,7 @@ void VulkanEngine::createTextureSampler(VulkanObject* object)
 	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-	if (vkCreateSampler(m_Device, &samplerInfo, nullptr, &object->GetTextureSampler()) != VK_SUCCESS) {
+	if (vkCreateSampler(m_Device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create texture sampler!");
 	}
 }

@@ -53,12 +53,12 @@ const void VulkanApp::initVulkan() {
 
 	//Creaate Objects after setting up required components
 
-	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/walls.obj", "textures/wall.jpg"));
-	m_Objects[0]->SetPos(glm::vec3(-0.0f, -0.05f, 0));
 
-	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/sword.obj", "textures/sword.png"));
-	m_Objects[1]->SetPos(glm::vec3(0.0f, -0.045f, 0));
-	m_Objects[1]->SetRot(glm::vec3(0, 35.0f, 0));
+	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/hand.obj", "textures/handC.png", "textures/handN.png", "textures/handS.png"));
+	m_Objects[0]->SetPos(glm::vec3(0.0f, -0.04f, 0));
+	m_Objects[0]->SetRot(glm::vec3(0, 35.0f, 0));
+	m_Objects[0]->SetScale(glm::vec3(0.424f, 0.424f, 0.424f));
+	
 	
 	
 	createDepthResources();
@@ -300,7 +300,7 @@ const void VulkanApp::cleanup() {
 	vkDestroyImage(device, offscreenPass.depth.image, nullptr);
 	vkDestroySampler(device, offscreenPass.depthSampler, nullptr);
 	delete m_Objects[0];
-	delete m_Objects[1];
+	
 
 	vkDestroyImageView(device, offscreenPass.depth.view, nullptr);
 	vkFreeMemory(device, offscreenPass.depth.mem, nullptr);
@@ -1405,9 +1405,23 @@ void VulkanApp::createDescriptorSetLayout()
 	depthSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	depthSamplerLayoutBinding.pImmutableSamplers = nullptr;
 	depthSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding normalSamplerLayoutBinding = {};
+	normalSamplerLayoutBinding.binding = 3;
+	normalSamplerLayoutBinding.descriptorCount = 1;
+	normalSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	normalSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	normalSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding specSamplerLayoutBinding = {};
+	specSamplerLayoutBinding.binding = 4;
+	specSamplerLayoutBinding.descriptorCount = 1;
+	specSamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	specSamplerLayoutBinding.pImmutableSamplers = nullptr;
+	specSamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	
 
-	std::array<VkDescriptorSetLayoutBinding, 3> bindings = { uboLayoutBinding, samplerLayoutBinding, depthSamplerLayoutBinding };// guboLayoutBinding
+	std::array<VkDescriptorSetLayoutBinding, 5> bindings = { uboLayoutBinding, samplerLayoutBinding, depthSamplerLayoutBinding, normalSamplerLayoutBinding, specSamplerLayoutBinding };// guboLayoutBinding
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1459,7 +1473,7 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 
-	glm::vec3 lightPos = glm::vec3(0.13f, 0.015f, 0.0f) * glm::mat3(glm::rotate(time * glm::radians(45.0f), glm::vec3(0, 1, 0)));
+	glm::vec3 lightPos = glm::vec3(0.0f, 0.015f, -0.0f);// *glm::mat3(glm::rotate(0 * glm::radians(45.0f), glm::vec3(0, 1, 0)));
 
 
 	// Matrix from light's point of view
@@ -1467,17 +1481,17 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	depthProjectionMatrix[1][1] *= -1;
 	glm::mat4 depthViewMatrix = glm::lookAt(lightPos, glm::vec3(0.0f, -0.01f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	glm::mat4 depthModelMatrix = glm::mat4(1); 
-	depthModelMatrix = glm::translate(glm::mat4(1.0f), m_Objects[objectIndex]->GetPos()) * glm::rotate(depthModelMatrix, time * glm::radians(m_Objects[objectIndex]->GetRot().y), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, 0.05f, 0.05f));
+	depthModelMatrix = glm::translate(glm::mat4(1.0f), m_Objects[objectIndex]->GetPos()) * glm::rotate(depthModelMatrix, time * glm::radians(m_Objects[objectIndex]->GetRot().y), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1.0f), m_Objects[objectIndex]->GetScale());
 
 	//Set up the uniform model matrix (rotation and translation and scale)
 	UniformBufferObject ubo = {};
 	//glm::mat4 model = glm::translate(glm::mat4(1.0f), m_Objects[objectIndex]->GetPos()) * glm::rotate(ubo.model, time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::scale(glm::mat4(1.0f), glm::vec3(10.0f, 10.0f, 10.0f));
 	ubo.model = glm::mat4(1);
-	ubo.model = glm::translate(glm::mat4(1.0f), m_Objects[objectIndex]->GetPos()) * glm::rotate(ubo.model, time * glm::radians(m_Objects[objectIndex]->GetRot().y), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.05f, 0.05f, 0.05f));
+	ubo.model = glm::translate(glm::mat4(1.0f), m_Objects[objectIndex]->GetPos()) * glm::rotate(ubo.model, time * glm::radians(m_Objects[objectIndex]->GetRot().y), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1.0f), m_Objects[objectIndex]->GetScale());
 	
 	
 	//View matrix using look at
-	ubo.view =  glm::lookAt(glm::vec3(0.0f, 0.05f, 0.1f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.view =  glm::lookAt(glm::vec3(0.0f, 0.01f, 0.1f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	//Projection / Perspective matrix
 	glm::mat4 proj = glm::perspective(glm::radians(67.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.01f, 100.0f);
 	proj[1][1] *= -1;
@@ -1513,7 +1527,7 @@ void VulkanApp::createDescriptorPool()
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(size*4);
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(size*4); //Need additional textures for the shadow map
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(size*5); //Need additional textures for the shadow map
 
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
@@ -1571,7 +1585,7 @@ void VulkanApp::createDescriptorSets()
 			imageInfo.sampler = m_Objects[j]->GetTextureSampler();
 
 			//Pass uniform buffer at binding 0
-			std::array<VkWriteDescriptorSet, 3> descriptorWrites = {};
+			std::array<VkWriteDescriptorSet, 5> descriptorWrites = {};
 			descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			descriptorWrites[0].dstSet = descriptorSets[index]; //desciptor to use
 			descriptorWrites[0].dstBinding = 0;
@@ -1600,6 +1614,30 @@ void VulkanApp::createDescriptorSets()
 			descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			descriptorWrites[2].descriptorCount = 1;
 			descriptorWrites[2].pImageInfo = &imageInfoDepth;
+
+			VkDescriptorImageInfo imageInfoNormal = {};
+			imageInfoNormal.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageInfoNormal.imageView = m_Objects[j]->GetNormalTextureImageView();
+			imageInfoNormal.sampler = m_Objects[j]->GetNormalTextureSampler();
+			descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[3].dstSet = descriptorSets[index];
+			descriptorWrites[3].dstBinding = 3;
+			descriptorWrites[3].dstArrayElement = 0;
+			descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[3].descriptorCount = 1;
+			descriptorWrites[3].pImageInfo = &imageInfoNormal;
+
+			VkDescriptorImageInfo imageInfoSpec = {};
+			imageInfoSpec.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageInfoSpec.imageView = m_Objects[j]->GetSpecTextureImageView();
+			imageInfoSpec.sampler = m_Objects[j]->GetSpecTextureSampler();
+			descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[4].dstSet = descriptorSets[index];
+			descriptorWrites[4].dstBinding = 4;
+			descriptorWrites[4].dstArrayElement = 0;
+			descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[4].descriptorCount = 1;
+			descriptorWrites[4].pImageInfo = &imageInfoSpec;
 
 
 
