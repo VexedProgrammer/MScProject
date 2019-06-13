@@ -81,6 +81,7 @@ private:
 	glm::vec3 m_Position = glm::vec3(0, 0, 0);
 	glm::vec3 m_Rotation = glm::vec3(0, 0, 0);
 	glm::vec3 m_Scale = glm::vec3(1, 1, 1);
+	bool m_bLit = true;
 
 	VulkanEngine* m_Engine;
 	VkPhysicalDevice& m_PhyDevice;
@@ -145,6 +146,9 @@ public:
 	void SetTextureImageView(VkImageView view) { textureImageView = view; }
 	VkImageView& GetTextureImageView() { return textureImageView; }
 	VkSampler& GetTextureSampler() { return textureSampler; }
+
+	const bool Lit() const { return m_bLit; }
+	const void SetLit(bool lit) { m_bLit = lit; }
 
 	VkImageView& GetNormalTextureImageView() { return ntextureImageView; }
 	VkSampler& GetNormalTextureSampler() { return ntextureSampler; }

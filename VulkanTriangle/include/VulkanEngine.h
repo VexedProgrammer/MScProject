@@ -31,7 +31,7 @@ public:
 	void createIndexBuffer(VkQueue& graphicsQueue, VkCommandPool& comPool, VulkanObject* object);
 
 	//Textures
-	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, VkSampleCountFlagBits numSamples);
 	void createTextureImage(VkQueue& graphicsQueue, VkCommandPool& comPool, VkImage& textureImage, VkDeviceMemory& textureImageMemory, const char* texturePath);
 	void createNoiseTextureImage(VkQueue& graphicsQueue, VkCommandPool& comPool, VkImage& textureImage, VkDeviceMemory& textureImageMemory, float distribution);
 	void transitionImageLayout(VkQueue& graphicsQueue, VkCommandPool& comPool, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);

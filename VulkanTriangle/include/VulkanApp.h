@@ -38,6 +38,7 @@ struct UniformBufferObject {
 	glm::mat4 proj;
 	glm::mat4 lightRot;
 	glm::mat4 lightSpace;
+	int enableLighting;
 };
 struct OffScreenUniformBufferObject {
 	glm::mat4 depthMVP;
@@ -272,5 +273,14 @@ private:
 	std::vector<VkDeviceMemory> offscreenMemorys;
 	std::vector<VkDescriptorSet> offscreenDescSets;
 	std::vector<OffScreenUniformBufferObject> offscreenUBOs;
+
+	//MSAA
+	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	VkImage colorImage;
+	VkDeviceMemory colorImageMemory;
+	VkImageView colorImageView;
+
+	VkSampleCountFlagBits getMaxUsableSampleCount();
+	void createColorResources();
 	
 };

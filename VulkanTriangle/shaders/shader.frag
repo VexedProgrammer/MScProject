@@ -13,6 +13,7 @@ layout(location = 0) out vec4 outColor;
 
 layout (location = 4) in vec4 inShadowCoord;
 layout (location = 5) in vec3 fragPos;
+layout (location = 6) in flat int enableLighting;
 
 vec3 ambLight = vec3(0.35, 0.35, 0.35);
 layout(location = 2) in vec3 lightDir;
@@ -60,8 +61,12 @@ float filterPCF(vec4 sc)
 }
 
 void main() {
-	
-	
+	vec4 col = texture(texSampler, fragTexCoord); //Get texture colour
+	if(enableLighting == 0)
+	{
+		outColor = vec4(col.r, col.g, col.b, 1);
+		return;
+	}
 	
 	vec4 normal = texture(normalMap, fragTexCoord); //Get texture colour
 	// compute derivations of the world position
@@ -89,7 +94,7 @@ void main() {
 	vec3 norm = normalize(normalNorm); //Normalize normalize
 	float diff =  max(dot(norm, lightDir), 0.0); //Calulate lamberisan
 	vec3 diffuse = lightColour * diff; //Calculate diffuse light
-	vec4 col = texture(texSampler, fragTexCoord); //Get texture colour
+	
 	
 	vec3 viewDir = normalize(-vec3(0.0f, 0.01f, 0.1f));
 	vec3 halfwayDir = normalize(normalize(lightDir) + viewDir);

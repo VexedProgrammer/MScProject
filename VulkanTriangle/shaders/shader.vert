@@ -7,6 +7,7 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 proj;
 	mat4 lightrot;
 	mat4 lightSpace;
+	int enableLighting;
 } ubo;
 
 layout(location = 0) in vec3 inPosition;
@@ -18,6 +19,7 @@ layout(location = 0) out vec3 fragNormal;
 layout(location = 1) out vec2 fragTexCoord;
 layout (location = 4) out vec4 outShadowCoord;
 layout(location = 5) out vec3 fragPos;
+layout(location = 6) out int enableLighting;
 
 vec3 lDir = vec3(0.0, 5.0, -5.0f);
 layout(location = 2) out vec3 lightDir;
@@ -36,7 +38,7 @@ void main() {
 	vec4 pos = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);//Calculate the position
 	fragPos =  (ubo.model * vec4(inPosition, 1.0)).xyz;
 	gl_Position = pos;
-	
+	enableLighting = ubo.enableLighting;
 	fragTexCoord = inTexCoord; //Pass out the texture coords
 	outShadowCoord = ( bias * ubo.lightSpace) * vec4(inPosition, 1.0);	//Calculate the shadow coords using a bias
 }
