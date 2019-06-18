@@ -163,12 +163,14 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="src\GLFW_Window.cpp" />
+    <ClCompile Include="src\Lighting.cpp" />
     <ClCompile Include="src\VulkanApp.cpp" />
     <ClCompile Include="src\VulkanEngine.cpp" />
     <ClCompile Include="src\VulkanObject.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\GLFW_Window.h" />
+    <ClInclude Include="include\Lighting.h" />
     <ClInclude Include="include\stb_image.h" />
     <ClInclude Include="include\tiny_obj_loader.h" />
     <ClInclude Include="include\VulkanApp.h" />

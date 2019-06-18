@@ -57,14 +57,14 @@ const void VulkanApp::initVulkan() {
 	
 
 	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/plane.obj", "textures/Background.png", "textures/white.png", "textures/white.png"));
-	m_Objects[0]->SetPos(glm::vec3(0.0f, -0.0f, -1));
+	m_Objects[0]->SetPos(glm::vec3(0.0f, -0.0f, -25));
 	m_Objects[0]->SetRot(glm::vec3(0, 0.0f, 0));
-	m_Objects[0]->SetScale(glm::vec3(0.1f, 0.1f, 0.1f));
+	m_Objects[0]->SetScale(glm::vec3(1.95f, 1.95f, 1.95f));
 	m_Objects[0]->SetLit(false);
-	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/hand.obj", "textures/handC.png", "textures/handN.png", "textures/handS.png"));
-	m_Objects[1]->SetPos(glm::vec3(0.0f, -0.04f, 0));
-	m_Objects[1]->SetRot(glm::vec3(0, 35.0f, 0));
-	m_Objects[1]->SetScale(glm::vec3(0.424f, 0.424f, 0.424f));
+	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/test.obj", "textures/FlatSkin.png", "textures/handN.png", "textures/handS.png"));
+	m_Objects[1]->SetPos(glm::vec3(0.0f, -0.0175f, 0));
+	m_Objects[1]->SetRot(glm::vec3(0, 0.0f, 0));
+	m_Objects[1]->SetScale(glm::vec3(0.15f, 0.15f, 0.15f));
 	
 	createColorResources();
 	createDepthResources();
@@ -1235,8 +1235,8 @@ void VulkanApp::createCommandBuffers() {
 				viewportoff.x = 0.0f; //No offset
 				viewportoff.y = 0.0f;//No offset
 				//Resolution
-				viewportoff.width = 1024.0f;
-				viewportoff.height = 1024.0f;
+				viewportoff.width = 2048;
+				viewportoff.height = 2048;
 				//Depth buffer range
 				viewportoff.minDepth = 0.0f;
 				viewportoff.maxDepth = 1.0f;
@@ -1244,8 +1244,8 @@ void VulkanApp::createCommandBuffers() {
 				vkCmdSetViewport(commandBuffers[i], 0, 1, &viewportoff);
 
 				VkRect2D scissor{};
-				scissor.extent.width = 1024;
-				scissor.extent.height = 1024;
+				scissor.extent.width = 2048;
+				scissor.extent.height = 2048;
 				scissor.offset.x = 0;
 				scissor.offset.y = 0;
 				vkCmdSetScissor(commandBuffers[i], 0, 1, &scissor);
@@ -1508,11 +1508,11 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 
-	glm::vec3 lightPos = glm::vec3(0.0f, 0.015f, -0.0f);// *glm::mat3(glm::rotate(0 * glm::radians(45.0f), glm::vec3(0, 1, 0)));
+	glm::vec3 lightPos = glm::vec3(-0.0f, 0.00001f, -0.15f)*glm::mat3(glm::rotate(time * glm::radians(45.0f), glm::vec3(0, 1, 0)));
 
 
 	// Matrix from light's point of view
-	glm::mat4 depthProjectionMatrix = glm::perspective(glm::radians(65.0f), 1.0f / 1.0f, 0.01f, 150.0f);
+	glm::mat4 depthProjectionMatrix = glm::perspective(glm::radians(67.0f), 1.0f / 1.0f, 0.01f, 150.0f);
 	depthProjectionMatrix[1][1] *= -1;
 	glm::mat4 depthViewMatrix = glm::lookAt(lightPos, glm::vec3(0.0f, -0.01f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	glm::mat4 depthModelMatrix = glm::mat4(1); 
@@ -1526,16 +1526,20 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	
 	
 	//View matrix using look at
-	ubo.view =  glm::lookAt(glm::vec3(0.0f, 0.01f, 0.1f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0001f, 0.15f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	//Projection / Perspective matrix
 	glm::mat4 proj = glm::perspective(glm::radians(67.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.01f, 100.0f);
 	proj[1][1] *= -1;
 	ubo.proj = proj;
 	ubo.lightRot = glm::rotate(glm::mat4(1), time * glm::radians(45.0f), glm::vec3(0, 1, 0));
 	ubo.lightSpace = depthProjectionMatrix * depthViewMatrix * depthModelMatrix;
-	ubo.enableLighting = m_Objects[objectIndex]->Lit();
+	ubo.lightViewProj = depthProjectionMatrix * depthViewMatrix;
+
+	ubo.AmbientColour = Lighting::AmbientColour;
+	ubo.AmbientColour.w = m_Objects[objectIndex]->Lit();
+	ubo.DirectionalColour = Lighting::DirectionalColour;
+
 	//Map memory to a CPU side pointer, copy over data then unmap from cpu side
-	
 	void* data;
 	vkMapMemory(device, uniformBuffersMemory[index], 0, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));
@@ -1806,8 +1810,8 @@ void VulkanApp::prepareOffscreenRenderpass()
 
 void VulkanApp::prepareOffscreenFramebuffer()
 {
-	offscreenPass.width = 1024;
-	offscreenPass.height = 1024;
+	offscreenPass.width = 2048;
+	offscreenPass.height = 2048;
 
 	VkFormat fbColorFormat = VK_FORMAT_R8G8B8A8_UNORM;
 

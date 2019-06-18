@@ -1,6 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
+#define PI 3.14159265359
+
 layout(location = 0) in vec3 fragNormal;
 layout(location = 1) in vec2 fragTexCoord;
 
@@ -15,9 +17,12 @@ layout (location = 4) in vec4 inShadowCoord;
 layout (location = 5) in vec3 fragPos;
 layout (location = 6) in flat int enableLighting;
 
-vec3 ambLight = vec3(0.35, 0.35, 0.35);
+layout(location = 7) in vec4 AmbientColour;
+layout(location = 8) in vec4 DirectionalColour;
+layout(location = 9) in vec4 FragmentPosition;
+layout(location = 10) in mat4 LightViewProj;
+
 layout(location = 2) in vec3 lightDir;
-vec3 lightColour = vec3(1, 1, 1);
 
 layout (constant_id = 0) const int enablePCF = 0;
 
@@ -39,35 +44,30 @@ float textureProj(vec4 shadowCoord, vec2 off)
 //Do multiple interation of the texture projections to filter the result, this helps feather edges and avoid artificating
 float filterPCF(vec4 sc)
 {
-	ivec2 texDim = textureSize(shadowMap, 0);
-	float scale = 1.5;
-	float dx = scale * 1.0 / float(texDim.x);
-	float dy = scale * 1.0 / float(texDim.y);
+	 ivec2 texDim = textureSize(shadowMap, 0);
+	 float scale = 0.5;
+	 float dx = scale * 1.0 / float(texDim.x);
+	 float dy = scale * 1.0 / float(texDim.y);
 
-	float shadowFactor = 0.0;
-	int count = 0;
-	int range = 1;
+	 float shadowFactor = 0.0;
+	 int count = 0;
+	 int range = 1;
 	
-	for (int x = -range; x <= range; x++)
-	{
-		for (int y = -range; y <= range; y++)
-		{
-			shadowFactor += textureProj(sc, vec2(dx*x, dy*y));
-			count++;
-		}
+	 for (int x = -range; x <= range; x++)
+	 {
+		 for (int y = -range; y <= range; y++)
+		 {
+			 float factor = textureProj(sc, vec2(dx*x, dy*y));
+			 shadowFactor += sc.z - 0.005 > factor ? 0.0 : 1.0;
+			 count++;
+		 }
+	 }
+	 return (shadowFactor) / count;
 	
-	}
-	return shadowFactor / count;
 }
 
-void main() {
-	vec4 col = texture(texSampler, fragTexCoord); //Get texture colour
-	if(enableLighting == 0)
-	{
-		outColor = vec4(col.r, col.g, col.b, 1);
-		return;
-	}
-	
+vec3 CalculateNorm()
+{
 	vec4 normal = texture(normalMap, fragTexCoord); //Get texture colour
 	// compute derivations of the world position
 	vec3 p_dx = dFdx(fragPos);
@@ -90,21 +90,110 @@ void main() {
 	mat3 tbn = mat3(t, b, n);
 	normal = normalize(normal * 2.0 - 1.0);   
 	vec3 normalNorm = normalize(tbn * normal.xyz); 
+	return normalNorm;
+}
+
+float dist(vec3 posW, vec3 normalW) {
+	/* // Shrink the position to avoid artifacts on the silhouette:
+	posW = (posW - 0.005 * normalW);
+
+	float scale = 180.0 * (1.0-0.2)/0.4;
+  
+	// Transform to light space:
+	vec4 posL = LightViewProj * vec4(posW, 1.0);
+	vec3 shadowCoords = posL.xyz/posL.w;
+	// Fetch depth from the shadow map:
+	float d1 = texture(shadowMap, shadowCoords.xy*0.5+0.5).r;
+  
+	float d2 = shadowCoords.z;
+
+	// Calculate the difference:
+	return abs(d1 - d2); */
+	
+	float distToLight = length(lightDir - posW);
+	vec4 posL = LightViewProj * vec4(posW, 1.0);
+	vec3 shadowCoords = posL.xyz/posL.w;
+	// Fetch depth from the shadow map:
+	vec4 d1 = texture(shadowMap, shadowCoords.xy*0.5+0.5);
+	vec3 Ni = texture(normalMap, d1.yz).xyz * vec3(2,2,2) - vec3(1,1,1);
+	
+	float backFacingEst = clamp(-dot( Ni, normalW ), 0.0, 1.0);
+	float thickness = distToLight - d1.x;
+	float nDotL1 = dot(normalW, lightDir);
+	if(nDotL1 > 0.0)
+	{
+		thickness = 50.0;
+	}
+	float correctThickness = clamp(-nDotL1, 0.0,1.0)*thickness;
+	float finalThickness = mix(thickness, correctThickness, backFacingEst);
+	float alpha = exp(finalThickness-20);
+	return finalThickness;
+	
+}
+// This function can be precomputed for efficiency
+
+vec3 T(float scaledDist) {
+	float dd = -scaledDist* scaledDist;
+
+	return	vec3(0.233f, 0.455f, 0.649f) * exp(dd / 0.0064f) +
+			vec3(0.1f,   0.336f, 0.344f) * exp(dd / 0.0484f) +
+			vec3(0.118f, 0.198f, 0.0f)   * exp(dd / 0.187f)  +
+			vec3(0.113f, 0.007f, 0.007f) * exp(dd / 0.567f)  +
+			vec3(0.358f, 0.004f, 0.0f)   * exp(dd / 1.99f)   +
+			vec3(0.078f, 0.0f,   0.0f)   * exp(dd / 7.41f);
+}
+void main() {
+	vec4 col = texture(texSampler, fragTexCoord); //Get texture colour
+	//col = texture( shadowMap, inShadowCoord.st);
+	if(AmbientColour.a == 0)
+	{
+		outColor = vec4(col.r, col.g, col.b, 1);
+		return;
+	}
+	  
+	vec3 tangentNorm = texture(normalMap, fragTexCoord).rgb;
+	vec3 normalNorm = CalculateNorm(); 
+	float s = dist(FragmentPosition.xyz, normalNorm) * 1;
+	float irradiance = clamp(0.3f + dot(lightDir, -normalNorm), 0.f, 1.f);
 	
 	vec3 norm = normalize(normalNorm); //Normalize normalize
-	float diff =  max(dot(norm, lightDir), 0.0); //Calulate lamberisan
-	vec3 diffuse = lightColour * diff; //Calculate diffuse light
+	float diff =  max(dot(lightDir, norm), 0.0); //Calulate lamberisan
+	vec3 diffuse = DirectionalColour.xyz * diff; //Calculate diffuse light
 	
 	
-	vec3 viewDir = normalize(-vec3(0.0f, 0.01f, 0.1f));
+	vec3 viewDir = normalize(-vec3(0.0f, 0.0f, 0.1f));
 	vec3 halfwayDir = normalize(normalize(lightDir) + viewDir);
 	
-	
+	float shadow =  filterPCF(inShadowCoord / inShadowCoord.w); //Calculate shadow value
 	float spec = pow(max(dot(norm, halfwayDir), 0.0), 64) * (1- texture(specMap, fragTexCoord).r);
 	vec3 specular = vec3(1,1,1) * spec;
+	diffuse += specular;
+	//diffuse *= shadow;
+	//diffuse *= ;
 	
-	float shadow =  filterPCF(inShadowCoord / inShadowCoord.w); //Calculate shadow value
-	outColor = vec4(((ambLight+diffuse+specular)*shadow)*col.xyz, 1.0) ;; //Output final lighting
 	
-	//outColor = vec4(col.r, col.g, col.b, 1);
+	
+	vec4 reflectance = vec4(((AmbientColour.rgb+diffuse+specular))*col.xyz, 1.0) ;; //Output final lighting
+	outColor = vec4(((AmbientColour.xyz+diffuse+specular)*shadow)*col.xyz,1) ;
+	outColor = reflectance;
+	vec3 colour = irradiance * col.xyz *DirectionalColour.xyz * T(s);
+	//outColor += vec4(colour,1.0);
+	//.xyz = colour;
+	outColor.a = 1;
+	//outColor = vec4(T(clamp(s,0,1)), 1);
+	//outColor = vec4(shadow, shadow, shadow, 1);
+	
+	
+	
+	
+	vec3 lightScale = diffuse;
+	vec3 kt = (T(s)*irradiance);
+	vec3 lightMult = (col.rgb*kt);
+	outColor.rgb =  reflectance.rgb + (vec3(T(s)) * DirectionalColour.rgb * colour.rgb * irradiance);//*DirectionalColour.rgb*col.rgb;
+	//outColor.a = s;
+	//outColor.rgb += diffuse;
+	//outColor.rgb = vec3(irradiance,irradiance,irradiance);
+	
+	
+	
 }

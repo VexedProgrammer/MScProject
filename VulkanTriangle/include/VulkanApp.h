@@ -27,6 +27,8 @@
 #include "VulkanObject.h"
 #include "VulkanEngine.h"
 
+#include "Lighting.h"
+
 
 
 /*! Uniform Buffer Object struct
@@ -38,7 +40,11 @@ struct UniformBufferObject {
 	glm::mat4 proj;
 	glm::mat4 lightRot;
 	glm::mat4 lightSpace;
-	int enableLighting;
+	glm::mat4 lightViewProj;
+
+	//Lighting
+	glm::vec4 AmbientColour;
+	glm::vec4 DirectionalColour;
 };
 struct OffScreenUniformBufferObject {
 	glm::mat4 depthMVP;
