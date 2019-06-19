@@ -110,9 +110,9 @@ float dist(vec3 posW, vec3 normalW) {
 	// Calculate the difference:
 	return abs(d1 - d2); */
 	
-	float distToLight = length(lightDir - posW);
+	float distToLight = length(-lightDir - posW);
 	vec4 posL = LightViewProj * vec4(posW, 1.0);
-	vec3 shadowCoords = posL.xyz/posL.w;
+	vec3 shadowCoords = inShadowCoord.xyz/inShadowCoord.w;
 	// Fetch depth from the shadow map:
 	vec4 d1 = texture(shadowMap, shadowCoords.xy*0.5+0.5);
 	vec3 Ni = texture(normalMap, d1.yz).xyz * vec3(2,2,2) - vec3(1,1,1);
@@ -142,6 +142,16 @@ vec3 T(float scaledDist) {
 			vec3(0.358f, 0.004f, 0.0f)   * exp(dd / 1.99f)   +
 			vec3(0.078f, 0.0f,   0.0f)   * exp(dd / 7.41f);
 }
+vec3 W(float scaledDist) {
+	float dd = -scaledDist* scaledDist;
+
+	return	vec3(1, 1, 1) * exp(dd / 0.0064f) +
+			vec3(0.8f,   0.8f, 0.8f) * exp(dd / 0.0484f) +
+			vec3(0.5f, 0.5f, 0.5f)   * exp(dd / 0.187f)  +
+			vec3(0.2f, 0.2f, 0.2f) * exp(dd / 0.567f)  +
+			vec3(0.05f, 0.05f, 0.05f)   * exp(dd / 1.99f)   +
+			vec3(0.005f, 0.005f,   0.005f)   * exp(dd / 7.41f);
+}
 void main() {
 	vec4 col = texture(texSampler, fragTexCoord); //Get texture colour
 	//col = texture( shadowMap, inShadowCoord.st);
@@ -153,7 +163,7 @@ void main() {
 	  
 	vec3 tangentNorm = texture(normalMap, fragTexCoord).rgb;
 	vec3 normalNorm = CalculateNorm(); 
-	float s = dist(FragmentPosition.xyz, normalNorm) * 1;
+	float s = dist(FragmentPosition.xyz, normalNorm) * 5.5;
 	float irradiance = clamp(0.3f + dot(lightDir, -normalNorm), 0.f, 1.f);
 	
 	vec3 norm = normalize(normalNorm); //Normalize normalize
@@ -168,12 +178,12 @@ void main() {
 	float spec = pow(max(dot(norm, halfwayDir), 0.0), 64) * (1- texture(specMap, fragTexCoord).r);
 	vec3 specular = vec3(1,1,1) * spec;
 	diffuse += specular;
-	//diffuse *= shadow;
+	diffuse *= shadow;
 	//diffuse *= ;
 	
 	
 	
-	vec4 reflectance = vec4(((AmbientColour.rgb+diffuse+specular))*col.xyz, 1.0) ;; //Output final lighting
+	vec4 reflectance = vec4(((AmbientColour.rgb+diffuse))*col.xyz, 1.0) ;; //Output final lighting
 	outColor = vec4(((AmbientColour.xyz+diffuse+specular)*shadow)*col.xyz,1) ;
 	outColor = reflectance;
 	vec3 colour = irradiance * col.xyz *DirectionalColour.xyz * T(s);
@@ -187,10 +197,11 @@ void main() {
 	
 	
 	vec3 lightScale = diffuse;
-	vec3 kt = (T(s)*irradiance);
+	vec3 kt = (T(s)*(s*irradiance));
 	vec3 lightMult = (col.rgb*kt);
-	outColor.rgb =  reflectance.rgb + (vec3(T(s)) * DirectionalColour.rgb * colour.rgb * irradiance);//*DirectionalColour.rgb*col.rgb;
-	//outColor.a = s;
+	outColor.rgb =  reflectance.rgb + (s*vec3(T(s)*col.rgb) * DirectionalColour.rgb);// * (irradiance*col.rgb));//*DirectionalColour.rgb*col.rgb;
+	//outColor.rgb = (T(s)*s*irradiance)* DirectionalColour.rgb * col.rgb * 3;
+	outColor.a = 1;
 	//outColor.rgb += diffuse;
 	//outColor.rgb = vec3(irradiance,irradiance,irradiance);
 	

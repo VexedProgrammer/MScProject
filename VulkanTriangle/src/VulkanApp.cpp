@@ -57,14 +57,20 @@ const void VulkanApp::initVulkan() {
 	
 
 	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/plane.obj", "textures/Background.png", "textures/white.png", "textures/white.png"));
-	m_Objects[0]->SetPos(glm::vec3(0.0f, -0.0f, -25));
+	m_Objects[0]->SetPos(glm::vec3(0.0f, -2.5f, -25));
 	m_Objects[0]->SetRot(glm::vec3(0, 0.0f, 0));
-	m_Objects[0]->SetScale(glm::vec3(1.95f, 1.95f, 1.95f));
+	m_Objects[0]->SetScale(glm::vec3(1.5f, 1.5f, 1.5f));
 	m_Objects[0]->SetLit(false);
-	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/test.obj", "textures/FlatSkin.png", "textures/handN.png", "textures/handS.png"));
-	m_Objects[1]->SetPos(glm::vec3(0.0f, -0.0175f, 0));
+	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/head.obj", "textures/headC.jpg", "textures/headN.jpg", "textures/headS.jpg"));
+	m_Objects[1]->SetPos(glm::vec3(0.0f, -0.135, 0));
 	m_Objects[1]->SetRot(glm::vec3(0, 0.0f, 0));
-	m_Objects[1]->SetScale(glm::vec3(0.15f, 0.15f, 0.15f));
+	m_Objects[1]->SetScale(glm::vec3(0.175f, 0.175f, 0.175f));
+
+	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/Light.obj", "textures/white.png", "textures/handN.png", "textures/handS.png"));
+	m_Objects[2]->SetPos(glm::vec3(0.0f, -0.15f, 0));
+	m_Objects[2]->SetRot(glm::vec3(0, 0.0f, 0));
+	m_Objects[2]->SetScale(glm::vec3(0.02f, 0.02f, 0.02f));
+	m_Objects[2]->SetLit(false);
 	
 	createColorResources();
 	createDepthResources();
@@ -1229,6 +1235,7 @@ void VulkanApp::createCommandBuffers() {
 		for (unsigned int j = 0; j < m_Objects.size(); j++)
 		{
 			//Get depth texture
+			if(j < 2)
 			{
 				
 				VkViewport viewportoff = {};
@@ -1508,13 +1515,19 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 
-	glm::vec3 lightPos = glm::vec3(-0.0f, 0.00001f, -0.15f)*glm::mat3(glm::rotate(time * glm::radians(45.0f), glm::vec3(0, 1, 0)));
-
+	glm::vec3 lightPos = glm::vec3(-0.0f, 0.1f, -0.75f)*glm::mat3(glm::rotate(time * glm::radians(45.0f), glm::vec3(0, 1, 0)));
+	if (objectIndex == 2)
+	{
+		glm::vec3 newPos = lightPos;
+		glm::vec3 vDir = glm::normalize(-newPos);
+		newPos += vDir * glm::vec3(0.55f);
+		m_Objects[objectIndex]->SetPos(newPos);
+	}
 
 	// Matrix from light's point of view
-	glm::mat4 depthProjectionMatrix = glm::perspective(glm::radians(67.0f), 1.0f / 1.0f, 0.01f, 150.0f);
+	glm::mat4 depthProjectionMatrix = glm::perspective(glm::radians(45.0f), 1.0f / 1.0f, 0.01f, 150.0f);
 	depthProjectionMatrix[1][1] *= -1;
-	glm::mat4 depthViewMatrix = glm::lookAt(lightPos, glm::vec3(0.0f, -0.01f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 depthViewMatrix = glm::lookAt(lightPos, glm::vec3(0.0f, 0.015f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	glm::mat4 depthModelMatrix = glm::mat4(1); 
 	depthModelMatrix = glm::translate(glm::mat4(1.0f), m_Objects[objectIndex]->GetPos()) * glm::rotate(depthModelMatrix, time * glm::radians(m_Objects[objectIndex]->GetRot().y), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1.0f), m_Objects[objectIndex]->GetScale());
 
@@ -1526,9 +1539,9 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	
 	
 	//View matrix using look at
-	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0001f, 0.15f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.1f, 0.55f), glm::vec3(0.0f, 0.015f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	//Projection / Perspective matrix
-	glm::mat4 proj = glm::perspective(glm::radians(67.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.01f, 100.0f);
+	glm::mat4 proj = glm::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.01f, 100.0f);
 	proj[1][1] *= -1;
 	ubo.proj = proj;
 	ubo.lightRot = glm::rotate(glm::mat4(1), time * glm::radians(45.0f), glm::vec3(0, 1, 0));
