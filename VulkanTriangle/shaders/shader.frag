@@ -122,7 +122,7 @@ float dist(vec3 posW, vec3 normalW) {
 	float nDotL1 = dot(normalW, lightDir);
 	if(nDotL1 > 0.0)
 	{
-		thickness = 50.0;
+		thickness = -50.0;
 	}
 	float correctThickness = clamp(-nDotL1, 0.0,1.0)*thickness;
 	float finalThickness = mix(thickness, correctThickness, backFacingEst);
@@ -183,7 +183,7 @@ void main() {
 	
 	
 	
-	vec4 reflectance = vec4(((AmbientColour.rgb+diffuse))*col.xyz, 1.0) ;; //Output final lighting
+	vec4 reflectance = vec4(((diffuse))*col.xyz, 1.0) ;; //Output final lighting
 	outColor = vec4(((AmbientColour.xyz+diffuse+specular)*shadow)*col.xyz,1) ;
 	outColor = reflectance;
 	vec3 colour = irradiance * col.xyz *DirectionalColour.xyz * T(s);
@@ -199,11 +199,11 @@ void main() {
 	vec3 lightScale = diffuse;
 	vec3 kt = (T(s)*(s*irradiance));
 	vec3 lightMult = (col.rgb*kt);
-	outColor.rgb =  reflectance.rgb + (s*vec3(T(s)*col.rgb) * DirectionalColour.rgb);// * (irradiance*col.rgb));//*DirectionalColour.rgb*col.rgb;
+	outColor.rgb =  (AmbientColour.rgb*col.rgb) + reflectance.rgb + clamp((s*T(s) * DirectionalColour.rgb * col.rgb * irradiance),0,1);// * (irradiance*col.rgb));//*DirectionalColour.rgb*col.rgb;
 	//outColor.rgb = (T(s)*s*irradiance)* DirectionalColour.rgb * col.rgb * 3;
 	outColor.a = 1;
 	//outColor.rgb += diffuse;
-	//outColor.rgb = vec3(irradiance,irradiance,irradiance);
+	//outColor.rgb = vec3(s,s,s);
 	
 	
 	
