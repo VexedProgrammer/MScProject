@@ -61,6 +61,7 @@ class VulkanApp {
 		VkImage image;
 		VkDeviceMemory mem;
 		VkImageView view;
+		VkFormat format;
 	};
 	struct OffscreenPass {
 		int32_t width, height;
@@ -70,6 +71,16 @@ class VulkanApp {
 		VkSampler depthSampler;
 		VkDescriptorImageInfo descriptor;
 	} offscreenPass;
+
+
+	struct GFrameBuffer {
+		VkFramebuffer frameBuffer;
+		FrameBufferAttachment position, normal, albedo;
+		FrameBufferAttachment depth;
+		VkRenderPass renderPass;
+	} offScreenFrameBuf;
+	// One sampler for the frame buffer color attachments
+	VkSampler colorSampler;
 private:
 
 	/*! Queue Family Indices Struct
@@ -288,5 +299,13 @@ private:
 
 	VkSampleCountFlagBits getMaxUsableSampleCount();
 	void createColorResources();
+
+	//GBuffer
+	void CreateGAttachment(
+		VkFormat format,
+		VkImageUsageFlagBits usage,
+		FrameBufferAttachment *attachment);
+
+	void prepareGOffscreenFramebuffer();
 	
 };

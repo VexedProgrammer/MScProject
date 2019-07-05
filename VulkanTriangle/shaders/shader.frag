@@ -94,8 +94,8 @@ vec3 CalculateNorm()
 }
 
 float dist(vec3 posW, vec3 normalW) {
-	/* // Shrink the position to avoid artifacts on the silhouette:
-	posW = (posW - 0.005 * normalW);
+	 // Shrink the position to avoid artifacts on the silhouette:
+ /* 	posW = (posW - 0.005 * normalW);
 
 	float scale = 180.0 * (1.0-0.2)/0.4;
   
@@ -103,12 +103,16 @@ float dist(vec3 posW, vec3 normalW) {
 	vec4 posL = LightViewProj * vec4(posW, 1.0);
 	vec3 shadowCoords = posL.xyz/posL.w;
 	// Fetch depth from the shadow map:
-	float d1 = texture(shadowMap, shadowCoords.xy*0.5+0.5).r;
-  
+	float d1 = texture(shadowMap, (inShadowCoord.xy/inShadowCoord.w)*0.5+0.5).r;
+	d1=d1*0.2;
 	float d2 = shadowCoords.z;
-
+	float nDotL = dot(normalW, lightDir);
+	// if(nDotL < 0)
+	// {
+		// return 0;
+	// }
 	// Calculate the difference:
-	return abs(d1 - d2); */
+	return abs(d1 - d2);  */
 	
 	float distToLight = length(-lightDir - posW);
 	vec4 posL = LightViewProj * vec4(posW, 1.0);
@@ -116,6 +120,8 @@ float dist(vec3 posW, vec3 normalW) {
 	// Fetch depth from the shadow map:
 	vec4 d1 = texture(shadowMap, shadowCoords.xy*0.5+0.5);
 	vec3 Ni = texture(normalMap, d1.yz).xyz * vec3(2,2,2) - vec3(1,1,1);
+	
+	d1 = d1*0.99;
 	
 	float backFacingEst = clamp(-dot( Ni, normalW ), 0.0, 1.0);
 	float thickness = distToLight - d1.x;
@@ -127,7 +133,7 @@ float dist(vec3 posW, vec3 normalW) {
 	float correctThickness = clamp(-nDotL1, 0.0,1.0)*thickness;
 	float finalThickness = mix(thickness, correctThickness, backFacingEst);
 	float alpha = exp(finalThickness-20);
-	return finalThickness;
+	return finalThickness; 
 	
 }
 // This function can be precomputed for efficiency
@@ -163,7 +169,7 @@ void main() {
 	  
 	vec3 tangentNorm = texture(normalMap, fragTexCoord).rgb;
 	vec3 normalNorm = CalculateNorm(); 
-	float s = dist(FragmentPosition.xyz, normalNorm) * 5.5;
+	float s = dist(FragmentPosition.xyz, normalNorm) * 7.0;
 	float irradiance = clamp(0.3f + dot(lightDir, -normalNorm), 0.f, 1.f);
 	
 	vec3 norm = normalize(normalNorm); //Normalize normalize
@@ -199,11 +205,11 @@ void main() {
 	vec3 lightScale = diffuse;
 	vec3 kt = (T(s)*(s*irradiance));
 	vec3 lightMult = (col.rgb*kt);
-	outColor.rgb =  (AmbientColour.rgb*col.rgb) + reflectance.rgb + clamp((s*T(s) * DirectionalColour.rgb * col.rgb * irradiance),0,1);// * (irradiance*col.rgb));//*DirectionalColour.rgb*col.rgb;
+	outColor.rgb =  (AmbientColour.rgb*col.rgb) + reflectance.rgb + clamp(s*(T(s) * DirectionalColour.rgb * col.rgb * irradiance),0,1);// * (irradiance*col.rgb));//*DirectionalColour.rgb*col.rgb;
 	//outColor.rgb = (T(s)*s*irradiance)* DirectionalColour.rgb * col.rgb * 3;
 	outColor.a = 1;
 	//outColor.rgb += diffuse;
-	//outColor.rgb = vec3(s,s,s);
+	//outColor.rgb = vec3(s);
 	
 	
 	
