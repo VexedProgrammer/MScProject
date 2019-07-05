@@ -49,6 +49,11 @@ struct UniformBufferObject {
 struct OffScreenUniformBufferObject {
 	glm::mat4 depthMVP;
 };
+struct GBufferUniformBufferObject {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
+};
 
 
 
@@ -80,7 +85,7 @@ class VulkanApp {
 		VkRenderPass renderPass;
 	} offScreenFrameBuf;
 	// One sampler for the frame buffer color attachments
-	VkSampler colorSampler;
+	VkSampler colourSampler;
 private:
 
 	/*! Queue Family Indices Struct
@@ -151,7 +156,8 @@ private:
 	VkPipelineLayout pipelineLayout; //The pipeline layout
 
 	/*! Graphics pipeline that contains the sequence of opertations used to render vertex information to the screen */
-	VkPipeline graphicsPipeline; 
+	VkPipeline GBufferGraphicsPipeline; 
+	VkPipeline graphicsPipeline;
 
 	/*! The command pool that holds all the command buffers we will use for each frame */
 	VkCommandPool commandPool;
@@ -262,6 +268,7 @@ private:
 
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets;
+	VkDescriptorSet finalRSet;
 
 	void createDescriptorPool();
 	void createDescriptorSets();
@@ -307,5 +314,9 @@ private:
 		FrameBufferAttachment *attachment);
 
 	void prepareGOffscreenFramebuffer();
+	void CleanGBuffer();
+	VkBuffer GBUniform;
+	VkDeviceMemory GBUniformMemory;
+	GBufferUniformBufferObject GBubo;
 	
 };

@@ -46,10 +46,12 @@ const void VulkanApp::initVulkan() {
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
+	prepareGOffscreenFramebuffer();
 	createDescriptorSetLayout();
 	prepareOffscreenFramebuffer();
 	createGraphicsPipeline();
 	createCommandPool();
+
 
 	//Creaate Objects after setting up required components
 
@@ -72,9 +74,11 @@ const void VulkanApp::initVulkan() {
 	m_Objects[2]->SetScale(glm::vec3(0.02f, 0.02f, 0.02f));
 	m_Objects[2]->SetLit(false);
 	
+
 	createColorResources();
 	createDepthResources();
 	createFramebuffers();
+	
 	createUniformBuffers();
 	createDescriptorPool();
 	createDescriptorSets();
@@ -315,7 +319,7 @@ const void VulkanApp::cleanup() {
 
 	delete m_Objects[0];
 	delete m_Objects[1];
-	
+	delete m_Objects[2];
 	
 
 	vkDestroyImageView(device, offscreenPass.depth.view, nullptr);
@@ -440,7 +444,7 @@ void VulkanApp::pickPhysicalDevice() {
 	for (const auto& device : devices) {
 		if (isDeviceSuitable(device)) {
 			physicalDevice = device;
-			msaaSamples = getMaxUsableSampleCount();
+			msaaSamples = VK_SAMPLE_COUNT_1_BIT;// getMaxUsableSampleCount();
 			break;
 		}
 	}
@@ -770,8 +774,8 @@ void VulkanApp::createGraphicsPipeline() {
 
 	//Read in shader files
 	//Base mesh and Shell rendering
-	auto vertShaderCode = readFile("shaders/vert.spv");
-	auto fragShaderCode = readFile("shaders/frag.spv");
+	auto vertShaderCode = readFile("shaders/GBVert.spv");
+	auto fragShaderCode = readFile("shaders/GBFrag.spv");
 
 
 	//Set up shader modules for both vertex and fragment shaders
@@ -880,8 +884,9 @@ void VulkanApp::createGraphicsPipeline() {
 	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	colorBlending.logicOpEnable = VK_FALSE;
 	colorBlending.logicOp = VK_LOGIC_OP_COPY;
-	colorBlending.attachmentCount = 1;
-	colorBlending.pAttachments = &colorBlendAttachment;
+	colorBlending.attachmentCount = 3;
+	std::array<VkPipelineColorBlendAttachmentState, 3> blendAttachmentStates = { colorBlendAttachment ,colorBlendAttachment ,colorBlendAttachment };
+	colorBlending.pAttachments = blendAttachmentStates.data();
 	colorBlending.blendConstants[0] = 0.0f;
 	colorBlending.blendConstants[1] = 0.0f;
 	colorBlending.blendConstants[2] = 0.0f;
@@ -925,7 +930,7 @@ void VulkanApp::createGraphicsPipeline() {
 	pipelineInfo.pMultisampleState = &multisampling;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.layout = pipelineLayout;
-	pipelineInfo.renderPass = renderPass;
+	pipelineInfo.renderPass = offScreenFrameBuf.renderPass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; //Only going to be using one pipline for now, dont need to refrence the base
 	pipelineInfo.pDepthStencilState = &depthStencil;
@@ -944,10 +949,42 @@ void VulkanApp::createGraphicsPipeline() {
 	shaderStages[1].pSpecializationInfo = &specializationInfo;
 
 	//Create pipeline and error check
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &GBufferGraphicsPipeline) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create graphics pipeline!");
+	}
+	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(device, vertShaderModule, nullptr);
+	pipelineInfo.renderPass = renderPass;
+	colorBlending.attachmentCount = 1;
+	colorBlending.pAttachments = &colorBlendAttachment;
+
+	auto vertShaderCodeR = readFile("shaders/vertR.spv");
+	auto fragShaderCodeR = readFile("shaders/fragR.spv");
+	//Set up shader modules for both vertex and fragment shaders
+	vertShaderModule = createShaderModule(vertShaderCodeR);
+	fragShaderModule = createShaderModule(fragShaderCodeR);
+
+	//Set up vertex info
+	vertShaderStageInfo = {};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT; //Vertex stage
+	vertShaderStageInfo.module = vertShaderModule; //Vertex shader
+	vertShaderStageInfo.pName = "main"; //Main function as entry point
+
+	//Set up fragment info
+	fragShaderStageInfo = {};
+	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT; //Fragment stage
+	fragShaderStageInfo.module = fragShaderModule; //Fragment shader
+	fragShaderStageInfo.pName = "main"; //Main function as entry point
+
+	shaderStages[0] = vertShaderStageInfo;
+	shaderStages[1] = fragShaderStageInfo;
+
+	//Create pipeline and error check
 	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}
-	
 
 	//Destroy shader modules now we have finished with them
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
@@ -1035,7 +1072,7 @@ void VulkanApp::createRenderPass() {
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //Not using stencil buffer for this
 	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //Not using stencil buffer for this
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;  //Ignore previos layout
-	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; //Use image in the swap buffer
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; //Use image in the swap buffer
 
 	VkAttachmentDescription colorAttachmentResolve = {};
 	colorAttachmentResolve.format = swapChainImageFormat;
@@ -1076,7 +1113,7 @@ void VulkanApp::createRenderPass() {
 	subpass.colorAttachmentCount = 1; //Just one attachment for colour rendering
 	subpass.pColorAttachments = &colorAttachmentRef; //Pass reference
 	subpass.pDepthStencilAttachment = &depthAttachmentRef;
-	subpass.pResolveAttachments = &colorAttachmentResolveRef;
+	//subpass.pResolveAttachments = &colorAttachmentResolveRef;
 
 	std::array<VkSubpassDependency, 2> dependencies;
 
@@ -1098,7 +1135,7 @@ void VulkanApp::createRenderPass() {
 
 
 	std::array<VkSubpassDescription, 1> subpasses = { subpass };
-	std::array<VkAttachmentDescription, 3> attachments = { colorAttachment, depthAttachment, colorAttachmentResolve };
+	std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment};//, colorAttachmentResolve };
 	//Set up the final render pass info passing in the above data
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -1122,10 +1159,10 @@ void VulkanApp::createFramebuffers() {
 
 	//For each swap chain view create a frame buffer
 	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-		std::array<VkImageView, 3> attachments = {
-				colorImageView,
+		std::array<VkImageView, 2> attachments = {
+				swapChainImageViews[i],
 				depthImageView,
-				swapChainImageViews[i]
+				
 		};
 
 		VkFramebufferCreateInfo framebufferInfo = {};
@@ -1275,15 +1312,17 @@ void VulkanApp::createCommandBuffers() {
 			}
 		}
 		vkCmdEndRenderPass(commandBuffers[i]);
-		clearValues[0].color = { 0.2f, 0.2f, 0.2f, 1.0f };
-		clearValues[1].depthStencil = { 1.0f, 0 };
+		std::array<VkClearValue, 4> clearValuesG;
+		clearValuesG[0].color = clearValuesG[1].color = { { 0.0f, 1.0f, 0.0f, 0.0f } };
+		clearValuesG[2].color = { { 0.0f, 1.0f, 0.0f, 0.0f } };
+		clearValuesG[3].depthStencil = { 1.0f, 0 };
 		renderPassBeginInfo = {};
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassBeginInfo.renderPass = renderPass;
-		renderPassBeginInfo.framebuffer = swapChainFramebuffers[i];
+		renderPassBeginInfo.renderPass = offScreenFrameBuf.renderPass;
+		renderPassBeginInfo.framebuffer = offScreenFrameBuf.frameBuffer;
 		renderPassBeginInfo.renderArea.extent = swapChainExtent;
-		renderPassBeginInfo.clearValueCount = 2;
-		renderPassBeginInfo.pClearValues = clearValues.data();
+		renderPassBeginInfo.clearValueCount = 4;
+		renderPassBeginInfo.pClearValues = clearValuesG.data();
 
 		vkCmdBeginRenderPass(commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		for (unsigned int j = 0; j < m_Objects.size(); j++)
@@ -1310,18 +1349,61 @@ void VulkanApp::createCommandBuffers() {
 
 
 				//Bind the graphics pipeline
-				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, GBufferGraphicsPipeline);
 
 				////Set the descipter to graphics
 				vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[index], 0, nullptr);
 
 				////Call the draw command
 				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(m_Objects[j]->GetIndices().size()), 1, 0, 0, 0);
+				//vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 				
 			}
 
 		}
 		vkCmdEndRenderPass(commandBuffers[i]);
+
+		std::array<VkClearValue, 2> clearValuesD;
+		clearValuesD[0].color = { { 1.0f, 0.0f, 0.0f, 0.0f } };
+		clearValuesD[1].depthStencil = { 1.0f, 0 };
+		renderPassBeginInfo = {};
+		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassBeginInfo.renderPass = renderPass;
+		renderPassBeginInfo.framebuffer = swapChainFramebuffers[i];
+		renderPassBeginInfo.renderArea.extent = swapChainExtent;
+		renderPassBeginInfo.clearValueCount = 2;
+		renderPassBeginInfo.pClearValues = clearValuesD.data();
+
+		vkCmdBeginRenderPass(commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &m_Objects[0]->GetVertexBuffer(), offsets);
+
+			//Set up dynamic viewport
+			vkCmdSetViewport(commandBuffers[i], 0, 1, &viewport);
+
+			VkRect2D scissor{};
+			scissor.extent.width = swapChainExtent.width;
+			scissor.extent.height = swapChainExtent.height;
+			scissor.offset.x = 0;
+			scissor.offset.y = 0;
+			vkCmdSetScissor(commandBuffers[i], 0, 1, &scissor);
+
+			//Bind index buffer
+			vkCmdBindIndexBuffer(commandBuffers[i], m_Objects[0]->GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+
+			//Bind the graphics pipeline
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+			////Set the descipter to graphics
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &finalRSet, 0, nullptr);
+
+			////Call the draw command
+			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(m_Objects[0]->GetIndices().size()), 1, 0, 0, 0);
+
+		}
+		vkCmdEndRenderPass(commandBuffers[i]);
+
 		//End pass
 		//vkCmdEndRenderPass(commandBuffers[i]);
 		
@@ -1376,10 +1458,12 @@ void VulkanApp::recreateSwapChain() {
 
 	//Delete current swapchain data
 	cleanupSwapChain();
+	CleanGBuffer();
 
 
 	//Create all parts of the swap chain
 	createSwapChain();
+	prepareGOffscreenFramebuffer();
 	createImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
@@ -1407,7 +1491,7 @@ void VulkanApp::cleanupSwapChain() {
 	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
 	//Destroy graphics pipline and layout
-	vkDestroyPipeline(device, graphicsPipeline, nullptr);
+	vkDestroyPipeline(device, GBufferGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 
 	vkDestroyPipeline(device, offscreenPipeline, nullptr);
@@ -1500,6 +1584,8 @@ void VulkanApp::createUniformBuffers()
 	for (size_t i = 0; i < m_Objects.size(); i++) {
 		m_Engine->createBuffer(sizeof(OffScreenUniformBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, offscreenUniforms[i], offscreenMemorys[i]);
 	}
+
+	m_Engine->createBuffer(sizeof(GBufferUniformBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, GBUniform, GBUniformMemory);
 }
 
 void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIndex)
@@ -1566,6 +1652,19 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	vkMapMemory(device, offscreenMemorys[objectIndex], 0, sizeof(OffScreenUniformBufferObject), 0, &offdata);
 	memcpy(offdata, &offscreenUBOs[objectIndex], sizeof(OffScreenUniformBufferObject));
 	vkUnmapMemory(device, offscreenMemorys[objectIndex]);
+	
+	GBubo = {};
+	glm::mat4 finalM = (glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -22)) * glm::scale(glm::mat4(1.0f), glm::vec3(1,1,1)));
+	glm::mat4 finalView = glm::lookAt(glm::vec3(0.0f, 0.001f, 0.55f), glm::vec3(0.0f, 0.001f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	GBubo.proj = proj;
+	GBubo.view = finalView;
+	GBubo.model = finalM;
+
+	void* gbdata;
+	vkMapMemory(device, GBUniformMemory, 0, sizeof(GBufferUniformBufferObject), 0, &gbdata);
+	memcpy(gbdata, &GBubo, sizeof(GBufferUniformBufferObject));
+	vkUnmapMemory(device, GBUniformMemory);
 }
 
 void VulkanApp::createDescriptorPool()
@@ -1729,7 +1828,50 @@ void VulkanApp::createDescriptorSets()
 		descriptorWritesOff[0].pBufferInfo = &bufferInfoOff;
 		vkUpdateDescriptorSets(device, descriptorWritesOff.size(), descriptorWritesOff.data(), 0, nullptr);
 	}
-	
+
+	//Allocate memory
+	std::vector<VkDescriptorSetLayout> layoutsR(1, descriptorSetLayout);
+	VkDescriptorSetAllocateInfo allocInfoR = {};
+	allocInfoR.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfoR.descriptorPool = descriptorPool; //Pass in the pool
+	allocInfoR.descriptorSetCount = static_cast<uint32_t>(layoutsR.size()); //Same as pool descriptor count
+	allocInfoR.pSetLayouts = layoutsR.data(); //Pass in layout data
+	if (vkAllocateDescriptorSets(device, &allocInfoR, &finalRSet) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate offscreen descriptor sets!");
+	}
+
+	VkDescriptorBufferInfo bufferInfo = {};
+	bufferInfo.buffer = GBUniform; //Actual buffer to use
+	bufferInfo.offset = 0; //Start at the start
+	bufferInfo.range = sizeof(GBufferUniformBufferObject); //Size of each buffer
+
+	VkDescriptorImageInfo imageInfo = {};
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	//std::cout << index << std::endl;
+	imageInfo.imageView = offScreenFrameBuf.position.view;
+	imageInfo.sampler = colourSampler;
+
+	//Pass uniform buffer at binding 0
+	std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
+	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[0].dstSet = finalRSet; //desciptor to use
+	descriptorWrites[0].dstBinding = 0;
+	descriptorWrites[0].dstArrayElement = 0;
+	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrites[0].descriptorCount = 1;
+	descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+	//Pass uniform sampler at binding 1
+	descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[1].dstSet = finalRSet;
+	descriptorWrites[1].dstBinding = 1;
+	descriptorWrites[1].dstArrayElement = 0;
+	descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrites[1].descriptorCount = 1;
+	descriptorWrites[1].pImageInfo = &imageInfo;
+
+	vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 }
 
 void VulkanApp::createDepthResources()
@@ -1938,7 +2080,7 @@ void VulkanApp::CreateGAttachment(VkFormat format, VkImageUsageFlagBits usage, F
 	}
 	if (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
 	{
-		aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;// | VK_IMAGE_ASPECT_STENCIL_BIT;
 		imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	}
 
@@ -2123,7 +2265,32 @@ void VulkanApp::prepareGOffscreenFramebuffer()
 	sampler.minLod = 0.0f;
 	sampler.maxLod = 1.0f;
 	sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	vkCreateSampler(device, &sampler, nullptr, &colorSampler);
+	vkCreateSampler(device, &sampler, nullptr, &colourSampler);
+}
+
+void VulkanApp::CleanGBuffer()
+{
+	// Color attachments
+	vkDestroyImageView(device, offScreenFrameBuf.position.view, nullptr);
+	vkDestroyImage(device, offScreenFrameBuf.position.image, nullptr);
+	vkFreeMemory(device, offScreenFrameBuf.position.mem, nullptr);
+
+	vkDestroyImageView(device, offScreenFrameBuf.normal.view, nullptr);
+	vkDestroyImage(device, offScreenFrameBuf.normal.image, nullptr);
+	vkFreeMemory(device, offScreenFrameBuf.normal.mem, nullptr);
+
+	vkDestroyImageView(device, offScreenFrameBuf.albedo.view, nullptr);
+	vkDestroyImage(device, offScreenFrameBuf.albedo.image, nullptr);
+	vkFreeMemory(device, offScreenFrameBuf.albedo.mem, nullptr);
+
+	// Depth attachment
+	vkDestroyImageView(device, offScreenFrameBuf.depth.view, nullptr);
+	vkDestroyImage(device, offScreenFrameBuf.depth.image, nullptr);
+	vkFreeMemory(device, offScreenFrameBuf.depth.mem, nullptr);
+
+	vkDestroyFramebuffer(device, offScreenFrameBuf.frameBuffer, nullptr);
+
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 }
 
 
