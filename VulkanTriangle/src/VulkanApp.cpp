@@ -61,7 +61,7 @@ const void VulkanApp::initVulkan() {
 	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/plane.obj", "textures/Background.png", "textures/white.png", "textures/white.png"));
 	m_Objects[0]->SetPos(glm::vec3(0.0f, -2.5f, -25));
 	m_Objects[0]->SetRot(glm::vec3(0, 0.0f, 0));
-	m_Objects[0]->SetScale(glm::vec3(1.5f, 1.5f, 1.5f));
+	m_Objects[0]->SetScale(glm::vec3(24.0f, 13.5f, 1.5f));
 	m_Objects[0]->SetLit(false);
 	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/head.obj", "textures/headC.jpg", "textures/headN.jpg", "textures/headS.jpg"));
 	m_Objects[1]->SetPos(glm::vec3(0.0f, -0.135, 0));
@@ -337,6 +337,10 @@ const void VulkanApp::cleanup() {
 	//clean up command pools
 	vkDestroyCommandPool(device, commandPool, nullptr);
 
+	//Clean up GBuffer
+	CleanGBuffer();
+	vkDestroyBuffer(device, GBUniform, nullptr);
+	vkFreeMemory(device, GBUniformMemory, nullptr);
 	//Clean up device
 	vkDestroyDevice(device, nullptr);
 
@@ -444,7 +448,7 @@ void VulkanApp::pickPhysicalDevice() {
 	for (const auto& device : devices) {
 		if (isDeviceSuitable(device)) {
 			physicalDevice = device;
-			msaaSamples = VK_SAMPLE_COUNT_1_BIT;// getMaxUsableSampleCount();
+			msaaSamples =  VK_SAMPLE_COUNT_1_BIT;// getMaxUsableSampleCount(); //
 			break;
 		}
 	}
@@ -1463,13 +1467,17 @@ void VulkanApp::recreateSwapChain() {
 
 	//Create all parts of the swap chain
 	createSwapChain();
-	prepareGOffscreenFramebuffer();
+	
 	createImageViews();
 	createRenderPass();
+	prepareGOffscreenFramebuffer();
 	createGraphicsPipeline();
 	createColorResources();
 	createDepthResources();
 	createFramebuffers();
+	
+	UpdateGBufferSets();
+
 	createCommandBuffers();
 }
 
@@ -1654,10 +1662,13 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	vkUnmapMemory(device, offscreenMemorys[objectIndex]);
 	
 	GBubo = {};
-	glm::mat4 finalM = (glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -22)) * glm::scale(glm::mat4(1.0f), glm::vec3(1,1,1)));
+	float width = swapChainExtent.width;
+	float height = swapChainExtent.height;
+	glm::mat4 finalM = (glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 0)) * glm::rotate(glm::radians(0.0f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1.0f), glm::vec3(width/2, height/2, 1)));
 	glm::mat4 finalView = glm::lookAt(glm::vec3(0.0f, 0.001f, 0.55f), glm::vec3(0.0f, 0.001f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-	GBubo.proj = proj;
+	
+	GBubo.proj = glm::ortho<float>(-width /2, width / 2, height / 2, -height / 2, -1.f, 1.f);
 	GBubo.view = finalView;
 	GBubo.model = finalM;
 
@@ -1840,38 +1851,7 @@ void VulkanApp::createDescriptorSets()
 		throw std::runtime_error("failed to allocate offscreen descriptor sets!");
 	}
 
-	VkDescriptorBufferInfo bufferInfo = {};
-	bufferInfo.buffer = GBUniform; //Actual buffer to use
-	bufferInfo.offset = 0; //Start at the start
-	bufferInfo.range = sizeof(GBufferUniformBufferObject); //Size of each buffer
-
-	VkDescriptorImageInfo imageInfo = {};
-	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	//std::cout << index << std::endl;
-	imageInfo.imageView = offScreenFrameBuf.position.view;
-	imageInfo.sampler = colourSampler;
-
-	//Pass uniform buffer at binding 0
-	std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
-	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[0].dstSet = finalRSet; //desciptor to use
-	descriptorWrites[0].dstBinding = 0;
-	descriptorWrites[0].dstArrayElement = 0;
-	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorWrites[0].descriptorCount = 1;
-	descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-	//Pass uniform sampler at binding 1
-	descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	descriptorWrites[1].dstSet = finalRSet;
-	descriptorWrites[1].dstBinding = 1;
-	descriptorWrites[1].dstArrayElement = 0;
-	descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	descriptorWrites[1].descriptorCount = 1;
-	descriptorWrites[1].pImageInfo = &imageInfo;
-
-	vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+	UpdateGBufferSets();
 }
 
 void VulkanApp::createDepthResources()
@@ -2266,6 +2246,8 @@ void VulkanApp::prepareGOffscreenFramebuffer()
 	sampler.maxLod = 1.0f;
 	sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 	vkCreateSampler(device, &sampler, nullptr, &colourSampler);
+
+	
 }
 
 void VulkanApp::CleanGBuffer()
@@ -2288,9 +2270,48 @@ void VulkanApp::CleanGBuffer()
 	vkDestroyImage(device, offScreenFrameBuf.depth.image, nullptr);
 	vkFreeMemory(device, offScreenFrameBuf.depth.mem, nullptr);
 
+	vkDestroySampler(device, colourSampler, nullptr);
+
 	vkDestroyFramebuffer(device, offScreenFrameBuf.frameBuffer, nullptr);
+	vkDestroyRenderPass(device, offScreenFrameBuf.renderPass, nullptr);
 
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
+}
+
+void VulkanApp::UpdateGBufferSets()
+{
+	VkDescriptorBufferInfo bufferInfo = {};
+	bufferInfo.buffer = GBUniform; //Actual buffer to use
+	bufferInfo.offset = 0; //Start at the start
+	bufferInfo.range = sizeof(GBufferUniformBufferObject); //Size of each buffer
+
+	VkDescriptorImageInfo imageInfo = {};
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	//std::cout << index << std::endl;
+	imageInfo.imageView = offScreenFrameBuf.albedo.view;
+	imageInfo.sampler = colourSampler;
+
+	//Pass uniform buffer at binding 0
+	std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
+	descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[0].dstSet = finalRSet; //desciptor to use
+	descriptorWrites[0].dstBinding = 0;
+	descriptorWrites[0].dstArrayElement = 0;
+	descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrites[0].descriptorCount = 1;
+	descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+	//Pass uniform sampler at binding 1
+	descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrites[1].dstSet = finalRSet;
+	descriptorWrites[1].dstBinding = 1;
+	descriptorWrites[1].dstArrayElement = 0;
+	descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrites[1].descriptorCount = 1;
+	descriptorWrites[1].pImageInfo = &imageInfo;
+
+	vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 }
 
 

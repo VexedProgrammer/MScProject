@@ -11,9 +11,9 @@ layout(binding = 2) uniform sampler2D shadowMap;
 layout(binding = 3) uniform sampler2D normalMap;
 layout(binding = 4) uniform sampler2D specMap;
 
-layout(location = 0) out vec4 outColor;
+layout(location = 2) out vec4 outColor;
 layout(location = 1) out vec4 outNormal;
-layout(location = 2) out vec4 outPosition;
+layout(location = 0) out vec4 outPosition;
 
 layout (location = 4) in vec4 inShadowCoord;
 layout (location = 5) in vec3 fragPos;
@@ -166,6 +166,8 @@ void main() {
 	if(AmbientColour.a == 0)
 	{
 		outColor = vec4(col.r, col.g, col.b, 1);
+		outNormal = vec4(0,0,0,0);
+		outPosition = vec4(0,0,0,0);
 		return;
 	}
 	  

@@ -315,6 +315,7 @@ private:
 
 	void prepareGOffscreenFramebuffer();
 	void CleanGBuffer();
+	void UpdateGBufferSets();
 	VkBuffer GBUniform;
 	VkDeviceMemory GBUniformMemory;
 	GBufferUniformBufferObject GBubo;

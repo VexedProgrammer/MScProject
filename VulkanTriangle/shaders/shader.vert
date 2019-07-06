@@ -17,6 +17,6 @@ layout(location = 1) out vec2 fragTexCoord;
 void main() {
 
 	vec4 pos = ubo.proj * ubo.view * ubo.model * vec4(inPosition, 1.0);//Calculate the position
-	gl_Position = pos;
+	gl_Position = pos;// vec4(inPosition, 1.0);
 	fragTexCoord = inTexCoord; //Pass out the texture coords
 }
