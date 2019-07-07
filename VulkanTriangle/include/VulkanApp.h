@@ -302,7 +302,17 @@ private:
 	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 	VkImage colorImage;
 	VkDeviceMemory colorImageMemory;
+
 	VkImageView colorImageView;
+	VkImage normalImage;
+	VkDeviceMemory normalImageMemory;
+	VkImageView normalImageView;
+	VkImage posImage;
+	VkDeviceMemory posImageMemory;
+	VkImageView posImageView;
+	VkImage dImage;
+	VkDeviceMemory dImageMemory;
+	VkImageView dImageView;
 
 	VkSampleCountFlagBits getMaxUsableSampleCount();
 	void createColorResources();

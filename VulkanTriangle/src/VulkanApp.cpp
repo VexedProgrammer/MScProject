@@ -46,11 +46,13 @@ const void VulkanApp::initVulkan() {
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
+	createCommandPool();
+	createColorResources();
 	prepareGOffscreenFramebuffer();
 	createDescriptorSetLayout();
 	prepareOffscreenFramebuffer();
 	createGraphicsPipeline();
-	createCommandPool();
+	
 
 
 	//Creaate Objects after setting up required components
@@ -75,7 +77,7 @@ const void VulkanApp::initVulkan() {
 	m_Objects[2]->SetLit(false);
 	
 
-	createColorResources();
+	
 	createDepthResources();
 	createFramebuffers();
 	
@@ -448,7 +450,7 @@ void VulkanApp::pickPhysicalDevice() {
 	for (const auto& device : devices) {
 		if (isDeviceSuitable(device)) {
 			physicalDevice = device;
-			msaaSamples =  VK_SAMPLE_COUNT_1_BIT;// getMaxUsableSampleCount(); //
+			msaaSamples =  getMaxUsableSampleCount(); //  VK_SAMPLE_COUNT_1_BIT;//
 			break;
 		}
 	}
@@ -650,7 +652,7 @@ VkSurfaceFormatKHR VulkanApp::chooseSwapSurfaceFormat(const std::vector<VkSurfac
 
 	//Otherwise we need to check if the preferred combinations is available
 	for (const auto& availableFormat : availableFormats) {
-		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM  && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
 			return availableFormat;
 		}
 	}
@@ -984,7 +986,7 @@ void VulkanApp::createGraphicsPipeline() {
 
 	shaderStages[0] = vertShaderStageInfo;
 	shaderStages[1] = fragShaderStageInfo;
-
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 	//Create pipeline and error check
 	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create graphics pipeline!");
@@ -1070,7 +1072,7 @@ void VulkanApp::createRenderPass() {
 
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = swapChainImageFormat;
-	colorAttachment.samples = msaaSamples; //Colour attachment must match swap chain format
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; //Colour attachment must match swap chain format
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; //Clear after frame
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; //Store frame-buffer after render so we can use it later
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; //Not using stencil buffer for this
@@ -1094,7 +1096,7 @@ void VulkanApp::createRenderPass() {
 
 	VkAttachmentDescription depthAttachment = {};
 	depthAttachment.format = findDepthFormat();
-	depthAttachment.samples = msaaSamples;
+	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -1317,8 +1319,8 @@ void VulkanApp::createCommandBuffers() {
 		}
 		vkCmdEndRenderPass(commandBuffers[i]);
 		std::array<VkClearValue, 4> clearValuesG;
-		clearValuesG[0].color = clearValuesG[1].color = { { 0.0f, 1.0f, 0.0f, 0.0f } };
-		clearValuesG[2].color = { { 0.0f, 1.0f, 0.0f, 0.0f } };
+		clearValuesG[0].color = clearValuesG[1].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
+		clearValuesG[2].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
 		clearValuesG[3].depthStencil = { 1.0f, 0 };
 		renderPassBeginInfo = {};
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1368,7 +1370,7 @@ void VulkanApp::createCommandBuffers() {
 		vkCmdEndRenderPass(commandBuffers[i]);
 
 		std::array<VkClearValue, 2> clearValuesD;
-		clearValuesD[0].color = { { 1.0f, 0.0f, 0.0f, 0.0f } };
+		clearValuesD[0].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
 		clearValuesD[1].depthStencil = { 1.0f, 0 };
 		renderPassBeginInfo = {};
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1470,9 +1472,10 @@ void VulkanApp::recreateSwapChain() {
 	
 	createImageViews();
 	createRenderPass();
+	createColorResources();
 	prepareGOffscreenFramebuffer();
 	createGraphicsPipeline();
-	createColorResources();
+	
 	createDepthResources();
 	createFramebuffers();
 	
@@ -1483,9 +1486,7 @@ void VulkanApp::recreateSwapChain() {
 
 void VulkanApp::cleanupSwapChain() {
 
-	vkDestroyImageView(device, colorImageView, nullptr);
-	vkDestroyImage(device, colorImage, nullptr);
-	vkFreeMemory(device, colorImageMemory, nullptr);
+	
 
 	vkDestroyImageView(device, depthImageView, nullptr);
 	vkDestroyImage(device, depthImage, nullptr);
@@ -1858,7 +1859,7 @@ void VulkanApp::createDepthResources()
 {
 	VkFormat depthFormat = findDepthFormat();
 
-	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory, msaaSamples);
+	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory, VK_SAMPLE_COUNT_1_BIT);
 	depthImageView = m_Engine->createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 	m_Engine->transitionImageLayout(graphicsQueue, commandPool, depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
@@ -2040,10 +2041,27 @@ void VulkanApp::createColorResources()
 {
 	VkFormat colorFormat = swapChainImageFormat;
 
-	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImage, colorImageMemory, msaaSamples);
+	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImage, colorImageMemory, VK_SAMPLE_COUNT_1_BIT);
 	colorImageView = m_Engine->createImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 
-	m_Engine->transitionImageLayout(graphicsQueue, commandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	//m_Engine->transitionImageLayout(graphicsQueue, commandPool, colorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	////////////////
+	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, normalImage, normalImageMemory, VK_SAMPLE_COUNT_1_BIT);
+	normalImageView = m_Engine->createImageView(normalImage, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	//m_Engine->transitionImageLayout(graphicsQueue, commandPool, normalImage, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	///////////
+	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, posImage, posImageMemory, VK_SAMPLE_COUNT_1_BIT);
+	posImageView = m_Engine->createImageView(posImage, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	//m_Engine->transitionImageLayout(graphicsQueue, commandPool, posImage, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	//////////////
+	VkFormat depthFormat = findDepthFormat();
+
+	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, dImage, dImageMemory, VK_SAMPLE_COUNT_1_BIT);
+	dImageView = m_Engine->createImageView(dImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+	m_Engine->transitionImageLayout(graphicsQueue, commandPool, dImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
 
 void VulkanApp::CreateGAttachment(VkFormat format, VkImageUsageFlagBits usage, FrameBufferAttachment * attachment)
@@ -2122,7 +2140,7 @@ void VulkanApp::prepareGOffscreenFramebuffer()
 
 	// Albedo (color)
 	CreateGAttachment(
-		VK_FORMAT_R8G8B8A8_UNORM,
+		VK_FORMAT_B8G8R8A8_UNORM,
 		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		&offScreenFrameBuf.albedo);
 
@@ -2139,7 +2157,7 @@ void VulkanApp::prepareGOffscreenFramebuffer()
 	// Set up separate renderpass with references
 	// to the color and depth attachments
 
-	std::array<VkAttachmentDescription, 4> attachmentDescs = {};
+	std::array<VkAttachmentDescription, 8> attachmentDescs = {};
 
 	// Init attachment properties
 	for (uint32_t i = 0; i < 4; ++i)
@@ -2176,11 +2194,60 @@ void VulkanApp::prepareGOffscreenFramebuffer()
 	depthReference.attachment = 3;
 	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+
+	VkAttachmentDescription colorAttachmentResolve = {};
+	colorAttachmentResolve.format = offScreenFrameBuf.position.format;
+	colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	VkAttachmentDescription albedoAttachmentResolve = {};
+	albedoAttachmentResolve.format = offScreenFrameBuf.albedo.format;
+	albedoAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+	albedoAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	albedoAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	albedoAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	albedoAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	albedoAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	albedoAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	VkAttachmentDescription depthAttachmentResolve = {};
+	depthAttachmentResolve.format = offScreenFrameBuf.depth.format;
+	depthAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depthAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depthAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	VkAttachmentReference colorAttachmentResolveRef = {};
+	colorAttachmentResolveRef.attachment = 4;
+	colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	VkAttachmentReference colorAttachmentResolveRef2 = {};
+	colorAttachmentResolveRef2.attachment = 5;
+	colorAttachmentResolveRef2.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	VkAttachmentReference colorAttachmentResolveRef3 = {};
+	colorAttachmentResolveRef3.attachment = 6;
+	colorAttachmentResolveRef3.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	VkAttachmentReference colorAttachmentResolveRef4 = {};
+	colorAttachmentResolveRef4.attachment = 7;
+	colorAttachmentResolveRef4.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	attachmentDescs[4] = colorAttachmentResolve;
+	attachmentDescs[5] = colorAttachmentResolve;
+	attachmentDescs[6] = albedoAttachmentResolve;
+	attachmentDescs[7] = depthAttachmentResolve;
+
+	std::array<VkAttachmentReference, 4> refs = { colorAttachmentResolveRef,colorAttachmentResolveRef2,colorAttachmentResolveRef3,colorAttachmentResolveRef4 };
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.pColorAttachments = colorReferences.data();
 	subpass.colorAttachmentCount = static_cast<uint32_t>(colorReferences.size());
 	subpass.pDepthStencilAttachment = &depthReference;
+	subpass.pResolveAttachments = refs.data();
 
 	// Use subpass dependencies for attachment layput transitions
 	std::array<VkSubpassDependency, 2> dependencies;
@@ -2212,11 +2279,15 @@ void VulkanApp::prepareGOffscreenFramebuffer()
 
 	vkCreateRenderPass(device, &renderPassInfo, nullptr, &offScreenFrameBuf.renderPass);
 
-	std::array<VkImageView, 4> attachments;
+	std::array<VkImageView, 8> attachments;
 	attachments[0] = offScreenFrameBuf.position.view;
 	attachments[1] = offScreenFrameBuf.normal.view;
 	attachments[2] = offScreenFrameBuf.albedo.view;
 	attachments[3] = offScreenFrameBuf.depth.view;
+	attachments[4] = posImageView;
+	attachments[5] = normalImageView;
+	attachments[6] = colorImageView;
+	attachments[7] = dImageView;
 
 	VkFramebufferCreateInfo fbufCreateInfo = {};
 	fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -2252,6 +2323,23 @@ void VulkanApp::prepareGOffscreenFramebuffer()
 
 void VulkanApp::CleanGBuffer()
 {
+	//Clean up single samplesv
+	vkDestroyImageView(device, colorImageView, nullptr);
+	vkDestroyImage(device, colorImage, nullptr);
+	vkFreeMemory(device, colorImageMemory, nullptr);
+
+	vkDestroyImageView(device, normalImageView, nullptr);
+	vkDestroyImage(device, normalImage, nullptr);
+	vkFreeMemory(device, normalImageMemory, nullptr);
+
+	vkDestroyImageView(device, posImageView, nullptr);
+	vkDestroyImage(device, posImage, nullptr);
+	vkFreeMemory(device, posImageMemory, nullptr);
+
+	vkDestroyImageView(device, dImageView, nullptr);
+	vkDestroyImage(device, dImage, nullptr);
+	vkFreeMemory(device, dImageMemory, nullptr);
+
 	// Color attachments
 	vkDestroyImageView(device, offScreenFrameBuf.position.view, nullptr);
 	vkDestroyImage(device, offScreenFrameBuf.position.image, nullptr);
@@ -2286,10 +2374,10 @@ void VulkanApp::UpdateGBufferSets()
 	bufferInfo.range = sizeof(GBufferUniformBufferObject); //Size of each buffer
 
 	VkDescriptorImageInfo imageInfo = {};
-	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
 	//std::cout << index << std::endl;
-	imageInfo.imageView = offScreenFrameBuf.albedo.view;
+	imageInfo.imageView = colorImageView;
 	imageInfo.sampler = colourSampler;
 
 	//Pass uniform buffer at binding 0
