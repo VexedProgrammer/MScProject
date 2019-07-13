@@ -123,7 +123,7 @@ float dist(vec3 posW, vec3 normalW) {
 	vec4 d1 = texture(shadowMap, shadowCoords.xy*0.5+0.5);
 	vec3 Ni = texture(normalMap, d1.yz).xyz * vec3(2,2,2) - vec3(1,1,1);
 	
-	d1 = d1*0.99;
+	d1 = d1*1.01;
 	
 	float backFacingEst = clamp(-dot( Ni, normalW ), 0.0, 1.0);
 	float thickness = distToLight - d1.x;
@@ -211,8 +211,8 @@ void main() {
 	vec3 lightMult = (col.rgb*kt);
 	outColor.rgb =  (AmbientColour.rgb*col.rgb) + reflectance.rgb + clamp(s*(T(s) * DirectionalColour.rgb * col.rgb * irradiance),0,1);// * (irradiance*col.rgb));//*DirectionalColour.rgb*col.rgb;
 	//outColor.rgb = (T(s)*s*irradiance)* DirectionalColour.rgb * col.rgb * 3;
-	outColor.a = 1;
-	outNormal = vec4(normalNorm, 1.0);
+	outColor.a = 1;//gl_FragCoord.z;
+	outNormal = vec4(normalNorm, gl_FragCoord.z);
 	outPosition = vec4(FragmentPosition.xyz, 1.0);
 	//outColor.rgb += diffuse;
 	//outColor.rgb = vec3(s);

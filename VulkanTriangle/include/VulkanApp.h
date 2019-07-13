@@ -28,6 +28,7 @@
 #include "VulkanEngine.h"
 
 #include "Lighting.h"
+#include "SubsurfacePass.h"
 
 
 
@@ -53,6 +54,9 @@ struct GBufferUniformBufferObject {
 	glm::mat4 model;
 	glm::mat4 view;
 	glm::mat4 proj;
+
+	glm::vec4 kernel[SS_NUM_SAMPLES];
+	glm::vec2 blurDirection;
 };
 
 
@@ -314,6 +318,8 @@ private:
 	VkDeviceMemory dImageMemory;
 	VkImageView dImageView;
 
+	
+
 	VkSampleCountFlagBits getMaxUsableSampleCount();
 	void createColorResources();
 
@@ -329,5 +335,23 @@ private:
 	VkBuffer GBUniform;
 	VkDeviceMemory GBUniformMemory;
 	GBufferUniformBufferObject GBubo;
+
+	//Subsurface Scattering
+	SubsurfacePass subsurfaceManager;
+
+	VkImage SSImage;
+	VkDeviceMemory SSImageMemory;
+	VkImageView SSImageView;
+
+	VkFramebuffer SSFrameBuffer;
+	VkRenderPass SSRenderPass;
+
+	VkPipeline SSGraphicsPipeline;
+	VkDescriptorSet finalSSet;
+	VkBuffer SSUniform;
+	GBufferUniformBufferObject SSubo;
+	VkDeviceMemory SSUniformMemory;
+	void CreateSSFrameBuffer();
+
 	
 };

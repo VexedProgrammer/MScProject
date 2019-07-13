@@ -172,6 +172,7 @@
     <ClInclude Include="include\GLFW_Window.h" />
     <ClInclude Include="include\Lighting.h" />
     <ClInclude Include="include\stb_image.h" />
+    <ClInclude Include="include\SubsurfacePass.h" />
     <ClInclude Include="include\tiny_obj_loader.h" />
     <ClInclude Include="include\VulkanApp.h" />
     <ClInclude Include="include\VulkanObject.h" />
