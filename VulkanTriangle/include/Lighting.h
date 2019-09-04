@@ -2,16 +2,17 @@
 
 #include <GLM/glm.hpp>
 
+//! Lighting
+/*!
+Lighting class that holds the colours/intensity of the scene lights
+*/
 class Lighting
 {
 public:
-	struct PointLight
-	{
-		glm::vec4 Position;
-		glm::vec4 Colour;
-		float Intensity;
-	};
-
+	//! Public vec4.
+	/*! glm::vec4, ambient light colour*/
 	static glm::vec4 AmbientColour;
-	static glm::vec4 DirectionalColour;
+	//! Public vec4.
+	/*! glm::vec4, colour of the light*/
+	static glm::vec4 LightColour;
 };

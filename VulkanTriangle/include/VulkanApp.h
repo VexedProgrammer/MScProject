@@ -55,7 +55,7 @@ struct GBufferUniformBufferObject {
 	glm::mat4 view;
 	glm::mat4 proj;
 
-	glm::vec4 kernel[SS_NUM_SAMPLES];
+	glm::vec4 kernel[SAMPLES];
 	glm::vec2 blurDirection;
 };
 
@@ -63,7 +63,7 @@ struct GBufferUniformBufferObject {
 
 
 /*! Vulkan App
-	Handling all vulkan code for displaying a simple pyrimid 
+	The main body of code that sets up and executes each of the render passes
 */
 class VulkanApp {
 	struct FrameBufferAttachment {
@@ -188,7 +188,13 @@ private:
 
 
 public:
+	//Default contructor
 	VulkanApp() {};
+	//!Run function
+	/*! 
+	Sets up and window and vulkan instance, then enters the main loop.
+	Calls cleanup when the main loop is exited.
+	*/
 	void run() {
 		initWindow();
 		initVulkan();
@@ -196,65 +202,86 @@ public:
 		cleanup();
 	}
 
+	//! Public boolean
+	/*! True if the window has been resized */
 	bool framebufferResized = false;
 
 private:
+	//Initilise the window using GLFW
 	const void initWindow();	
+	//Initalise vulkan by creating a vulkan instance and creating all required vulkan objects required to render
 	const void initVulkan();
+	//The main loop, runs each frame
 	const void mainLoop();
+	//Clean up all remaining vulkan objects and memory
 	const void cleanup();
 
+	//Create the vulkan instance
 	const void createInstance();
+	//Check which validation layers are supported 
 	bool checkValidationLayerSupport();
+	//Return a list of the required extentions
 	std::vector<const char*> getRequiredExtensions();
+	//Set a call back for the validation layers
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 		VkDebugUtilsMessageTypeFlagsEXT messageType,
 		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 		void* pUserData);
-
+	//Set up a messenger for the validation layer
 	void setupDebugMessenger();
+	//Debug utilities
 	VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
 		const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
 		const VkAllocationCallbacks* pAllocator,
 		VkDebugUtilsMessengerEXT* pDebugMessenger);
-
+	//Clean up debug utilities
 	void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 		VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
 
+	//auto select a physical device to use
 	void pickPhysicalDevice();
+	//Check if the device is suitable for rendering
 	bool isDeviceSuitable(VkPhysicalDevice device);
+	//Find graphics queues
 	QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
-
+	//Create a logical device to interface with the physical device
 	void createLogicalDevice();
-
+	//Create render target/surface
 	void createSurface();
-
+	//Check for which extension are support (e.g. Anisotropic filtering)
 	bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 
+	//Check for swap chain support 
 	SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+	//Swap surface colour formats
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+	//Swap the present mode (e.g. tripple buffering)
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> availablePresentModes);
+	//Change surface size/extents (x,y)
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 	void createSwapChain();
-
+	//Create inital image views for forward rendering
 	void createImageViews();
-
+	//Create the required pipelines for rendering
 	void createGraphicsPipeline();
+	//Create compiled shader modules
 	VkShaderModule createShaderModule(const std::vector<char>& code);
-
+	//Create render pass for forward rendering
 	void createRenderPass();
-
+	//Create framebuffer for forward rendering
 	void createFramebuffers();
-
+	//Create command pool for storing command buffers
 	void createCommandPool();
+	//Create the command buffers required for rednering commands
 	void createCommandBuffers();
-
+	//Draw frame, called once a frame to render and queue inscructions
 	void drawFrame();
-
+	//Create fences and semephores for syncing CPU and GPU
 	void createSyncObjects();
-
+	//Create the swap chain, used when the window is resized
 	void recreateSwapChain();
+	//Clean up swap chain objects and memory before recreating it
 	void cleanupSwapChain();
 
 	
@@ -286,7 +313,7 @@ private:
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 	VkFormat findDepthFormat();
 
-	//Custom
+	//Custom Objects
 
 	std::vector<VulkanObject*> m_Objects;
 
@@ -303,10 +330,11 @@ private:
 	std::vector<OffScreenUniformBufferObject> offscreenUBOs;
 
 	//MSAA
-	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT; //This is set to the highest that the machine it is running on is capable of
+	
+	//Colour, normal, position and death images used for the multisampled version of the GBuffer
 	VkImage colorImage;
 	VkDeviceMemory colorImageMemory;
-
 	VkImageView colorImageView;
 	VkImage normalImage;
 	VkDeviceMemory normalImageMemory;
@@ -324,34 +352,47 @@ private:
 	void createColorResources();
 
 	//GBuffer
+	//! Private CreateGAttachment
+	/*!
+	Creates an attachment required for the GBuffer
+	*/
 	void CreateGAttachment(
 		VkFormat format,
 		VkImageUsageFlagBits usage,
 		FrameBufferAttachment *attachment);
-
+	//! Private CreateGAttachment
+	/*!
+	Creates all the attachments for the GBuffer (Colour, Normal, Specular, Depth).
+	*/
 	void prepareGOffscreenFramebuffer();
+	//! Private CleanGBuffer
+	/*!
+	Cleans up objects and memory related to the GBuffer
+	*/
 	void CleanGBuffer();
+	//! Private UpdateGBufferSets
+	/*!
+	Update the descriptor sets used for the GBuffer
+	*/
 	void UpdateGBufferSets();
 	VkBuffer GBUniform;
 	VkDeviceMemory GBUniformMemory;
 	GBufferUniformBufferObject GBubo;
 
 	//Subsurface Scattering
+
+	//Manager
 	SubsurfacePass subsurfaceManager;
-
-	VkImage SSImage;
-	VkDeviceMemory SSImageMemory;
-	VkImageView SSImageView;
-
-	VkFramebuffer SSFrameBuffer;
-	VkRenderPass SSRenderPass;
-
-	VkPipeline SSGraphicsPipeline;
-	VkDescriptorSet finalSSet;
-	VkBuffer SSUniform;
+	//Uniforms buffer
 	GBufferUniformBufferObject SSubo;
-	VkDeviceMemory SSUniformMemory;
+	//Create Frame Buffer
 	void CreateSSFrameBuffer();
+	
+	
+	//Timers used to calculate performance (frame times, fps)
+	float realTime = 0;
+	float timercount = 0;
+	float framecount = 0;
 
 	
 };

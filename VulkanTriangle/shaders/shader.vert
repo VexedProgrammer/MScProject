@@ -1,7 +1,7 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#define NUM_SAMPLES	17
+#define NUM_SAMPLES	25
 
 layout (binding = 0) uniform GBufferUniformBufferObject 
 {

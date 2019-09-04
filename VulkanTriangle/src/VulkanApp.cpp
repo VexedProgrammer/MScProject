@@ -61,21 +61,25 @@ const void VulkanApp::initVulkan() {
 
 	
 
-	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/plane.obj", "textures/Background.png", "textures/white.png", "textures/white.png"));
+	m_Objects.push_back(new VulkanObject(m_Engine, device, graphicsQueue, commandPool, "models/plane.obj", "textures/Background.png", "textures/white.png", "textures/white.png"));
 	m_Objects[0]->SetPos(glm::vec3(0.0f, -2.5f, -25));
 	m_Objects[0]->SetRot(glm::vec3(0, 0.0f, 0));
 	m_Objects[0]->SetScale(glm::vec3(24.0f, 13.5f, 1.5f));
 	m_Objects[0]->SetLit(false);
-	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/head.obj", "textures/headC.jpg", "textures/headN.jpg", "textures/headS.jpg"));
+
+	m_Objects.push_back(new VulkanObject(m_Engine, device, graphicsQueue, commandPool, "models/headLow.obj", "textures/headC.jpg", "textures/headN.jpg", "textures/headS.jpg"));
 	m_Objects[1]->SetPos(glm::vec3(0.0f, -0.135, 0));
 	m_Objects[1]->SetRot(glm::vec3(0, 0.0f, 0));
 	m_Objects[1]->SetScale(glm::vec3(0.175f, 0.175f, 0.175f));
 
-	m_Objects.push_back(new VulkanObject(m_Engine, physicalDevice, device, graphicsQueue, commandPool, "models/Light.obj", "textures/white.png", "textures/handN.png", "textures/handS.png"));
+	
+
+	m_Objects.push_back(new VulkanObject(m_Engine, device, graphicsQueue, commandPool, "models/Light.obj", "textures/white.png", "textures/handN.png", "textures/handS.png"));
 	m_Objects[2]->SetPos(glm::vec3(0.0f, -0.15f, 0));
 	m_Objects[2]->SetRot(glm::vec3(0, 0.0f, 0));
 	m_Objects[2]->SetScale(glm::vec3(0.02f, 0.02f, 0.02f));
 	m_Objects[2]->SetLit(false);
+
 	
 
 	
@@ -231,7 +235,7 @@ void VulkanApp::drawFrame() {
 		//Update shader buffers
 		updateUniformBuffer(imageIndex, j);
 	}
-
+	framecount++;
 	//Set up submit info
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -344,6 +348,11 @@ const void VulkanApp::cleanup() {
 	CleanGBuffer();
 	vkDestroyBuffer(device, GBUniform, nullptr);
 	vkFreeMemory(device, GBUniformMemory, nullptr);
+
+
+	//Clean up sss
+	subsurfaceManager.CleanUp(device);
+
 	//Clean up device
 	vkDestroyDevice(device, nullptr);
 
@@ -664,7 +673,7 @@ VkSurfaceFormatKHR VulkanApp::chooseSwapSurfaceFormat(const std::vector<VkSurfac
 VkPresentModeKHR VulkanApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR> availablePresentModes) {
 
 	//Set best mode to VK_PRESENT_MODE_FIFO_KHR as it is garenteed to be available
-	VkPresentModeKHR bestMode = VK_PRESENT_MODE_FIFO_KHR;
+	VkPresentModeKHR bestMode = VK_PRESENT_MODE_IMMEDIATE_KHR;// VK_PRESENT_MODE_FIFO_KHR;
 
 	//Loop through and check for VK_PRESENT_MODE_MAILBOX_KHR for triple buffering
 	//for (const auto& availablePresentMode : availablePresentModes) {
@@ -961,7 +970,7 @@ void VulkanApp::createGraphicsPipeline() {
 	}
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
 	vkDestroyShaderModule(device, vertShaderModule, nullptr);
-	pipelineInfo.renderPass = SSRenderPass;
+	pipelineInfo.renderPass = subsurfaceManager.SSRenderPass;
 	colorBlending.attachmentCount = 1;
 	colorBlending.pAttachments = &colorBlendAttachment;
 
@@ -993,7 +1002,7 @@ void VulkanApp::createGraphicsPipeline() {
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}
 	pipelineInfo.renderPass = renderPass;
-	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &SSGraphicsPipeline) != VK_SUCCESS) {
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &subsurfaceManager.SSGraphicsPipeline) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create graphics pipeline!");
 	}
 	//Destroy shader modules now we have finished with them
@@ -1282,7 +1291,7 @@ void VulkanApp::createCommandBuffers() {
 		for (unsigned int j = 0; j < m_Objects.size(); j++)
 		{
 			//Get depth texture
-			if(j < 2)
+			if(j < 2 || j > 2)
 			{
 				
 				VkViewport viewportoff = {};
@@ -1378,8 +1387,8 @@ void VulkanApp::createCommandBuffers() {
 		//clearValuesD[1].depthStencil = { 1.0f, 0 };
 		renderPassBeginInfo = {};
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassBeginInfo.renderPass = SSRenderPass;
-		renderPassBeginInfo.framebuffer = SSFrameBuffer;
+		renderPassBeginInfo.renderPass = subsurfaceManager.SSRenderPass;
+		renderPassBeginInfo.framebuffer = subsurfaceManager.SSFrameBuffer;
 		renderPassBeginInfo.renderArea.extent = swapChainExtent;
 		renderPassBeginInfo.clearValueCount = 1;
 		renderPassBeginInfo.pClearValues = clearValuesD.data();
@@ -1440,10 +1449,10 @@ void VulkanApp::createCommandBuffers() {
 
 
 			//Bind the graphics pipeline
-			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, SSGraphicsPipeline);
+			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, subsurfaceManager.SSGraphicsPipeline);
 
 			////Set the descipter to graphics
-			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &finalSSet, 0, nullptr);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &subsurfaceManager.finalSSet, 0, nullptr);
 
 			////Call the draw command
 			vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(m_Objects[0]->GetIndices().size()), 1, 0, 0, 0);
@@ -1549,6 +1558,9 @@ void VulkanApp::cleanupSwapChain() {
 	vkDestroyPipeline(device, offscreenPipeline, nullptr);
 	vkDestroyPipelineLayout(device, offscreenPipelineLayout, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr); //Clean up render pass data
+
+	//Clean up SSS
+	subsurfaceManager.CleanUpBuffer(device);
 	//Destroy all image views
 	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
 		vkDestroyImageView(device, swapChainImageViews[i], nullptr);
@@ -1638,23 +1650,37 @@ void VulkanApp::createUniformBuffers()
 	}
 
 	m_Engine->createBuffer(sizeof(GBufferUniformBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, GBUniform, GBUniformMemory);
-	m_Engine->createBuffer(sizeof(GBufferUniformBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, SSUniform, SSUniformMemory);
+	m_Engine->createBuffer(sizeof(GBufferUniformBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, subsurfaceManager.SSUniform, subsurfaceManager.SSUniformMemory);
 }
 
 void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIndex)
 {
 	unsigned int index = m_Objects.size() * currentImage + objectIndex;
 
+	
 	//Time at start of frame
 	static auto startTime = std::chrono::high_resolution_clock::now();
 
 	//Current time
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	//Delta Time
+	
+	
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+	//std::cout << time - realTime << '\r' << std::endl;// std::flush;
+	timercount += time - realTime;
+	realTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
+	
 
-	glm::vec3 lightPos = glm::vec3(-0.0f, 0.1f, -0.75f)*glm::mat3(glm::rotate(time * glm::radians(45.0f), glm::vec3(0, 1, 0)));
+	if (timercount >= 1)
+	{
+		timercount = 0;
+		std::cout << framecount << '\r' << std::endl;
+		framecount = 0;
+	}
+
+	glm::vec3 lightPos = glm::vec3(-0.0f, 0.1f, -0.75f) *glm::mat3(glm::rotate(time * glm::radians(45.0f), glm::vec3(0, 1, 0)));
 	if (objectIndex == 2)
 	{
 		glm::vec3 newPos = lightPos;
@@ -1689,7 +1715,7 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 
 	ubo.AmbientColour = Lighting::AmbientColour;
 	ubo.AmbientColour.w = m_Objects[objectIndex]->Lit();
-	ubo.DirectionalColour = Lighting::DirectionalColour;
+	ubo.DirectionalColour = Lighting::LightColour;
 
 	//Map memory to a CPU side pointer, copy over data then unmap from cpu side
 	void* data;
@@ -1698,7 +1724,7 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	vkUnmapMemory(device, uniformBuffersMemory[index]);
 
 	
-
+	//Depth MVP
 	offscreenUBOs[objectIndex].depthMVP = depthProjectionMatrix * depthViewMatrix * depthModelMatrix;
 
 	void* offdata;
@@ -1706,6 +1732,7 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	memcpy(offdata, &offscreenUBOs[objectIndex], sizeof(OffScreenUniformBufferObject));
 	vkUnmapMemory(device, offscreenMemorys[objectIndex]);
 	
+	//SSSS first pass
 	GBubo = {};
 	float width = swapChainExtent.width;
 	float height = swapChainExtent.height;
@@ -1716,25 +1743,26 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage, unsigned int objectIn
 	GBubo.proj = glm::ortho<float>(-width /2, width / 2, height / 2, -height / 2, -1.f, 1.f);
 	GBubo.view = finalView;
 	GBubo.model = finalM;
-	for (size_t i = 0; i < SS_NUM_SAMPLES; i++) GBubo.kernel[i] = subsurfaceManager.kernel[i];
-	GBubo.blurDirection = glm::vec2(1, 0);
+	for (size_t i = 0; i < SAMPLES; i++) GBubo.kernel[i] = subsurfaceManager.kernel[i];
+	GBubo.blurDirection = glm::vec2(1, 0); //Blur horizontal
 
 	void* gbdata;
 	vkMapMemory(device, GBUniformMemory, 0, sizeof(GBufferUniformBufferObject), 0, &gbdata);
 	memcpy(gbdata, &GBubo, sizeof(GBufferUniformBufferObject));
 	vkUnmapMemory(device, GBUniformMemory);
 
+	//SSSS Second Pass
 	SSubo = {};
 	SSubo.proj = glm::ortho<float>(-width / 2, width / 2, height / 2, -height / 2, -1.f, 1.f);
 	SSubo.view = finalView;
 	SSubo.model = finalM;
-	for (size_t i = 0; i < SS_NUM_SAMPLES; i++) SSubo.kernel[i] = subsurfaceManager.kernel[i];
-	SSubo.blurDirection = glm::vec2(0, 1);
+	for (size_t i = 0; i < SAMPLES; i++) SSubo.kernel[i] = subsurfaceManager.kernel[i];
+	SSubo.blurDirection = glm::vec2(0, 1);//Blur Verticle
 
 	void* ssdata;
-	vkMapMemory(device, SSUniformMemory, 0, sizeof(GBufferUniformBufferObject), 0, &ssdata);
+	vkMapMemory(device, subsurfaceManager.SSUniformMemory, 0, sizeof(GBufferUniformBufferObject), 0, &ssdata);
 	memcpy(ssdata, &SSubo, sizeof(GBufferUniformBufferObject));
-	vkUnmapMemory(device, SSUniformMemory);
+	vkUnmapMemory(device, subsurfaceManager.SSUniformMemory);
 }
 
 void VulkanApp::createDescriptorPool()
@@ -1909,7 +1937,7 @@ void VulkanApp::createDescriptorSets()
 	if (vkAllocateDescriptorSets(device, &allocInfoR, &finalRSet) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate offscreen descriptor sets!");
 	}
-	if (vkAllocateDescriptorSets(device, &allocInfoR, &finalSSet) != VK_SUCCESS) {
+	if (vkAllocateDescriptorSets(device, &allocInfoR, &subsurfaceManager.finalSSet) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate offscreen descriptor sets!");
 	}
 
@@ -2478,13 +2506,13 @@ void VulkanApp::UpdateGBufferSets()
 
 	vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
-	descriptorWrites[0].dstSet = finalSSet;
-	descriptorWrites[1].dstSet = finalSSet;
-	descriptorWrites[2].dstSet = finalSSet;
+	descriptorWrites[0].dstSet = subsurfaceManager.finalSSet;
+	descriptorWrites[1].dstSet = subsurfaceManager.finalSSet;
+	descriptorWrites[2].dstSet = subsurfaceManager.finalSSet;
 
-	imageInfo.imageView = SSImageView;
+	imageInfo.imageView = subsurfaceManager.SSImageView;
 	descriptorWrites[1].pImageInfo = &imageInfo;
-	bufferInfo.buffer = SSUniform;
+	bufferInfo.buffer = subsurfaceManager.SSUniform;
 	descriptorWrites[0].pBufferInfo = &bufferInfo;
 	
 	vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
@@ -2493,8 +2521,8 @@ void VulkanApp::UpdateGBufferSets()
 void VulkanApp::CreateSSFrameBuffer()
 {
 	//SS
-	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, SSImage, SSImageMemory, VK_SAMPLE_COUNT_1_BIT);
-	SSImageView = m_Engine->createImageView(SSImage, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+	m_Engine->createImage(swapChainExtent.width, swapChainExtent.height, swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, subsurfaceManager.SSImage, subsurfaceManager.SSImageMemory, VK_SAMPLE_COUNT_1_BIT);
+	subsurfaceManager.SSImageView = m_Engine->createImageView(subsurfaceManager.SSImage, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 	subsurfaceManager.computeKernel();
 
 	//Render Pass
@@ -2552,19 +2580,19 @@ void VulkanApp::CreateSSFrameBuffer()
 	renderPassInfo.pDependencies = dependencies.data();
 
 	//Create render pass and error check
-	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &SSRenderPass) != VK_SUCCESS) {
+	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &subsurfaceManager.SSRenderPass) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create render pass!");
 	}
 	//For each swap chain view create a frame buffer
 
 	std::array<VkImageView, 1> attachments = {
-			SSImageView
+			subsurfaceManager.SSImageView
 
 	};
 
 	VkFramebufferCreateInfo framebufferInfo = {};
 	framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-	framebufferInfo.renderPass = SSRenderPass; //Pass in the render pass
+	framebufferInfo.renderPass = subsurfaceManager.SSRenderPass; //Pass in the render pass
 	framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());; //Two attachments in the swap chain (include depth)
 	framebufferInfo.pAttachments = attachments.data(); //pass in the swap chain image view as an attachment along with depth/stencil
 	framebufferInfo.width = swapChainExtent.width; //Resolution
@@ -2572,7 +2600,7 @@ void VulkanApp::CreateSSFrameBuffer()
 	framebufferInfo.layers = 1; //Just 1 layer
 
 	//Create frame buffer and error check
-	if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &SSFrameBuffer) != VK_SUCCESS) {
+	if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &subsurfaceManager.SSFrameBuffer) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create framebuffer!");
 	}
 	

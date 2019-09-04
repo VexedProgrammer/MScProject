@@ -4,12 +4,9 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h> 
 
-VulkanObject::VulkanObject(VulkanEngine* engine, VkPhysicalDevice& phyDevice, VkDevice& device, VkQueue graphicsQueue, VkCommandPool commandPool, const char* modelPath, const char* texturePath, const char* nTexturePath, const char* sTexturePath) : m_PhyDevice(phyDevice), m_Device(device)
+VulkanObject::VulkanObject(VulkanEngine* engine, VkDevice& device, VkQueue graphicsQueue, VkCommandPool commandPool, const char* modelPath, const char* texturePath, const char* nTexturePath, const char* sTexturePath) : m_Device(device)
 {
 	m_Engine = engine;
-
-	m_GraphicsPipline = graphicsQueue;
-	m_CommandPool = commandPool;
 
 	loadModel(modelPath);
 
